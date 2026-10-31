@@ -22,7 +22,7 @@ import { signalType } from "./signalTypes";
 import { HtmlText, SvgText } from "./sigText";
 import GamePanel, { PANEL_BOXES } from "./GamePanel";
 import GameDiagram, { Pulse, bitsMarker, mix, trimEnd } from "./gameParts";
-import { TourInvite, TourPanel, useTour } from "./Tour";
+import { TourDock, TourInvite, TourPanel, useTour } from "./Tour";
 
 // The active color palette (see theme.js). SVG parts read it directly; HTML parts use the
 // matching CSS variables (--sap-*) set on the page root. An active part is drawn in the color of
@@ -1088,6 +1088,18 @@ export default function Sap1Visualizer() {
                   : "Red marks what is active in this T state."}{" "}
                 Esc or the breadcrumbs go back up a level.
               </p>
+              {/* Below lg: the mission on view, docked to the bottom of the screen. */}
+              <TourDock
+                tour={tour}
+                sim={sim}
+                d={d}
+                offPanel={!showPanel}
+                invite={tour.invite && mode === "game"}
+                onBackToPanel={backToPanel}
+                onLoadExample={() => setSim((s) => loadExample(s))}
+                onRestart={() => startTour({ restart: true })}
+                onStart={() => startTour({ restart: true })}
+              />
             </div>
 
             <div className="min-w-0">
@@ -1104,7 +1116,11 @@ export default function Sap1Visualizer() {
               ) : (
                 tour.invite &&
                 mode === "game" && (
-                  <TourInvite onStart={() => startTour({ restart: true })} onDecline={tour.decline} />
+                  <TourInvite
+                    onStart={() => startTour({ restart: true })}
+                    onDecline={tour.decline}
+                    className="max-lg:hidden"
+                  />
                 )
               )}
               <Panel
