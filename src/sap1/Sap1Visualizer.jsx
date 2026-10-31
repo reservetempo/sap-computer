@@ -526,12 +526,13 @@ function BitButton({ caption, label, type, on, onClick, className = "" }) {
   );
 }
 
-// PROG mode: the address switches (S1), data switches (S3) and Write (S4).
-function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite }) {
+// PROG mode: the address switches (S1), data switches (S3) and Write (S4). below: it sits under
+// the diagram instead of above it.
+function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite, below = false }) {
   const addr = sim.addrSw & 15;
   const word = decodeWord(sim.dataSw);
   return (
-    <div className="border border-b-0 border-[color:var(--sap-frame)] px-3 py-2">
+    <div className={`border ${below ? "border-t-0" : "border-b-0"} border-[color:var(--sap-frame)] px-3 py-2`}>
       <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
         <div role="group" aria-label="Address switches" className="flex gap-1">
           {[3, 2, 1, 0].map((i) => (
@@ -800,6 +801,15 @@ export default function Sap1Visualizer() {
   const openPart = useCallback((id) => navigate([...pathRef.current, id]), [navigate]);
   // Game mode shows the overview as a front panel and the levels below as chips on a board.
   const showPanel = mode === "game" && path.length === 0;
+  const progSwitches = (
+    <ProgSwitches
+      sim={sim}
+      below={showPanel}
+      onAddrBit={(i) => setSim((s) => toggleAddrBit(s, i))}
+      onDataBit={(i) => setSim((s) => toggleDataBit(s, i))}
+      onWrite={() => setSim((s) => write(s))}
+    />
+  );
 
   const focusId = hoverId ?? selectedId;
   const focus = node.diagram.blocks.find((b) => b.id === focusId);
@@ -989,20 +999,15 @@ export default function Sap1Visualizer() {
                 </div>
               </div>
 
-              {sim.prog && (
-                <ProgSwitches
-                  sim={sim}
-                  onAddrBit={(i) => setSim((s) => toggleAddrBit(s, i))}
-                  onDataBit={(i) => setSim((s) => toggleDataBit(s, i))}
-                  onWrite={() => setSim((s) => write(s))}
-                />
-              )}
+              {/* On the front panel it goes below, so flipping S2 doesn't push the panel's
+                  switches out from under the pointer. */}
+              {sim.prog && !showPanel && progSwitches}
 
               <div className="overflow-x-auto border border-[color:var(--sap-frame)]">
                 <svg
                   ref={svgRef}
                   viewBox={FULL.join(" ")}
-                  className="block h-auto w-full min-w-[680px] select-none outline-none"
+                  className="block h-auto w-full min-w-[680px] touch-manipulation select-none outline-none"
                   tabIndex={-1}
                   role="group"
                   aria-label={showPanel ? "SAP-1 front panel" : `${node.title} diagram`}
@@ -1071,6 +1076,8 @@ export default function Sap1Visualizer() {
                   </g>
                 </svg>
               </div>
+
+              {sim.prog && showPanel && progSwitches}
 
               <p className="border border-t-0 border-[color:var(--sap-frame)] px-3 py-2 text-sm" aria-live="polite">
                 <span className="font-bold">

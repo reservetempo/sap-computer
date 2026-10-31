@@ -653,7 +653,7 @@ const NUT = Array.from({ length: 6 }, (_, i) => {
 }).join(" ");
 
 const CONTROL_CSS = `
-.gp-ctl { cursor: pointer; outline: none; }
+.gp-ctl { cursor: pointer; outline: none; touch-action: manipulation; }
 .gp-ctl[aria-disabled="true"] { cursor: default; }
 .gp-ctl .gp-focus { opacity: 0; }
 .gp-ctl:focus-visible .gp-focus { opacity: 1; }
@@ -1023,6 +1023,7 @@ function Controls({ sim, setSim, running, setRunning, rate, setRate }) {
             <Toggle
               key={`a${bit}`}
               x={x}
+              w={26}
               on={on}
               label={`Address switch A${bit}, ${on ? "on" : "off"}`}
               onFlip={() => setSim((s) => toggleAddrBit(s, bit))}
@@ -1051,6 +1052,7 @@ function Controls({ sim, setSim, running, setRunning, rate, setRate }) {
             <Toggle
               key={`d${bit}`}
               x={x}
+              w={26}
               on={on}
               label={`Data switch D${bit}, ${on ? "on" : "off"}`}
               onFlip={() => setSim((s) => toggleDataBit(s, bit))}
