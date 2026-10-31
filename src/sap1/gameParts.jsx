@@ -14,8 +14,8 @@ import { GAME as P, TYPE_LED } from "./theme";
 import { signalType } from "./signalTypes";
 import { SvgText } from "./sigText";
 
-const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif";
-const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+const FONT = P.font.label; // Michroma silkscreen lettering
+const MONO = P.font.mono; // IBM Plex Mono readouts
 
 const BOARD = "#0b1510"; // the circuit board under everything
 const SILK = P.ink; // silkscreen lettering on the board
@@ -294,6 +294,7 @@ function GameWire({ w, d, stepMs }) {
             y={m.h ? m.y + 19 : m.y + 4}
             textAnchor={m.h ? "middle" : "start"}
             fontSize={11}
+            fontFamily={MONO}
             fill={text}
             {...HALO}
           >
@@ -303,7 +304,7 @@ function GameWire({ w, d, stepMs }) {
       )}
       {w.dots?.map(([x, y], i) => <Solder key={i} x={x} y={y} color={color} />)}
       {w.label && (
-        <text x={w.labelAt[0]} y={w.labelAt[1]} textAnchor={w.anchor ?? "middle"} fontSize={12} fill={text} {...HALO}>
+        <text x={w.labelAt[0]} y={w.labelAt[1]} textAnchor={w.anchor ?? "middle"} fontSize={11} fill={text} {...HALO}>
           <SvgText text={w.label} />
         </text>
       )}
@@ -342,7 +343,7 @@ function GamePin({ p, d, stepMs }) {
         x={lx}
         y={ly}
         textAnchor={anchor}
-        fontSize={13}
+        fontSize={12}
         fontWeight={on ? 700 : 400}
         fill={on ? color : mix(color, SILK, 0.5)}
         {...HALO}
@@ -379,7 +380,7 @@ function GameGroup({ g, sim, d, path }) {
         strokeWidth={active ? 1.6 : 1}
       />
       <rect x={g.x + 4} y={g.y + 4} width={g.w - 8} height={g.h - 8} rx={4} fill="none" stroke={SILK} strokeOpacity={0.14} />
-      <text x={g.x + 10} y={g.y + 16} fontSize={10.5} fontFamily={FONT} letterSpacing={1.2} fill={SILK} opacity={0.8} {...HALO}>
+      <text x={g.x + 10} y={g.y + 15} fontSize={9} fontFamily={FONT} letterSpacing={0.5} fill={SILK} opacity={0.8} {...HALO}>
         {g.label.toUpperCase()}
       </text>
       {value && (
@@ -465,9 +466,8 @@ function Toggle({ cx, cy, down, names }) {
             x={cx}
             y={i ? cy + 28 : cy - 21}
             textAnchor="middle"
-            fontSize={8.5}
+            fontSize={6.5}
             fontFamily={FONT}
-            letterSpacing={0.6}
             fontWeight={Boolean(i) === down ? 700 : 400}
             fill={SILK}
             opacity={Boolean(i) === down ? 1 : 0.55}
@@ -520,7 +520,7 @@ const FocusRing = ({ b }) => (
 // The reference designator (C4, S1...) silkscreened on the board above the part's top-left corner.
 const Tag = ({ b }) =>
   b.tag ? (
-    <text x={b.x + 2} y={b.y - 4} fontSize={10.5} fontFamily={FONT} letterSpacing={0.8} fill={SILK} opacity={0.85} {...HALO}>
+    <text x={b.x + 2} y={b.y - 4} fontSize={9.5} fontFamily={FONT} letterSpacing={0.3} fill={SILK} opacity={0.85} {...HALO}>
       {b.tag}
     </text>
   ) : null;
@@ -595,7 +595,7 @@ function GameChip({ b, sim, d, path, drill, focused, ev, stepMs }) {
   const dot = vertical ? [bx + 9, by + 9] : [bx + 9, by + bh - 9];
 
   const lines = [{ text: b.title, size: 15, weight: 700, spacing: 0.6, fill: PRINT }];
-  if (b.sub) lines.push({ text: b.sub, size: 11.5, fill: PRINT_SUB });
+  if (b.sub) lines.push({ text: b.sub, size: 10, fill: PRINT_SUB });
   if (value != null) lines.push({ text: value, size: 13, mono: true, fill: active ? hot : SILK, glow: active });
 
   return (
@@ -659,8 +659,8 @@ function GameSwitch({ b, sim, d, drill, focused, ev }) {
     const names = b.title.split(" / ");
     const down = !push && names.length === 2 && value != null && value.toUpperCase().includes(names[1].toUpperCase());
     const [cx, cy] = [b.x + 23, b.y + b.h / 2];
-    const lines = [{ text: b.title, size: 12.5, weight: 700, fill: SILK }];
-    if (b.sub) lines.push({ text: b.sub, size: 11, fill: P.muted });
+    const lines = [{ text: b.title, size: 10.5, weight: 700, fill: SILK }];
+    if (b.sub) lines.push({ text: b.sub, size: 9.5, fill: P.muted });
     if (value != null) lines.push({ text: value, size: 12, mono: true, fill: SILK });
     inner = (
       <>
@@ -784,7 +784,7 @@ export default function GameDiagram({ node, path, sim, d, focusId, onEnter, onLe
   const dg = node.diagram;
   const ev = { onEnter, onLeave, onActivate };
   return (
-    <>
+    <g fontFamily={FONT}>
       <GameDefs />
       <rect x={0} y={0} width={CANVAS.w} height={CANVAS.h} fill={BOARD} />
       <rect x={0} y={0} width={CANVAS.w} height={CANVAS.h} fill="url(#gm-board-holes)" />
@@ -792,7 +792,7 @@ export default function GameDiagram({ node, path, sim, d, focusId, onEnter, onLe
       {dg.wires?.map((w, i) => <GameWire key={`w${i}`} w={w} d={d} stepMs={stepMs} />)}
       {dg.pins?.map((p, i) => <GamePin key={`p${i}`} p={p} d={d} stepMs={stepMs} />)}
       {dg.notes?.map((n, i) => (
-        <text key={`n${i}`} x={n.at[0]} y={n.at[1]} textAnchor={n.anchor ?? "middle"} fontSize={11.5} fill={P.muted} {...HALO}>
+        <text key={`n${i}`} x={n.at[0]} y={n.at[1]} textAnchor={n.anchor ?? "middle"} fontSize={10.5} fill={P.muted} {...HALO}>
           <SvgText text={n.text} />
         </text>
       ))}
@@ -812,6 +812,6 @@ export default function GameDiagram({ node, path, sim, d, focusId, onEnter, onLe
           />
         );
       })}
-    </>
+    </g>
   );
 }

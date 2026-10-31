@@ -30,7 +30,6 @@ import { TourDock, TourInvite, TourPanel, useTour } from "./Tour";
 const PaletteContext = createContext(TEXTBOOK);
 const usePalette = () => useContext(PaletteContext);
 
-const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 const FULL = [0, 0, CANVAS.w, CANVAS.h];
 // The free-running clock's period for each rate setting (the toolbar's and the panel's CLOCK switch).
 export const STEP_MS = { slow: 1200, med: 550, fast: 150 };
@@ -204,7 +203,7 @@ function Group({ g, sim, d, path }) {
         {g.label.toUpperCase()}
       </text>
       {value && (
-        <text x={g.x + g.w - 10} y={g.y + 19} textAnchor="end" fontSize={12.5} fontFamily={MONO} fill={active ? hot : P.ink}>
+        <text x={g.x + g.w - 10} y={g.y + 19} textAnchor="end" fontSize={12.5} fontFamily={P.font.mono} fill={active ? hot : P.ink}>
           {value}
         </text>
       )}
@@ -258,7 +257,7 @@ function ConRow({ b, d }) {
       <text x={b.x - 8} y={mid} textAnchor="end" fontSize={13} fontWeight={700} fill={P.ink}>
         CON
       </text>
-      <text x={b.x + b.w + 8} y={mid} fontSize={13} fontFamily={MONO} fill={P.ink}>
+      <text x={b.x + b.w + 8} y={mid} fontSize={13} fontFamily={P.font.mono} fill={P.ink}>
         {hex(d.con, 3)}H
       </text>
     </g>
@@ -321,7 +320,7 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
           transform={`rotate(-90 ${cx} ${cy})`}
           textAnchor="middle"
           fontSize={13}
-          fontFamily={MONO}
+          fontFamily={P.font.mono}
           fill={active ? hot : P.muted}
         >
           {d.bus === null ? "not driven" : bin(d.bus, d.busBits)}
@@ -379,7 +378,7 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
             textAnchor="middle"
             fontSize={l.size}
             fontWeight={l.weight ?? 400}
-            fontFamily={l.mono ? MONO : undefined}
+            fontFamily={l.mono ? P.font.mono : undefined}
             fill={l.fill}
           >
             {l.text}
@@ -426,6 +425,8 @@ function Diagram({ node, path, sim, d, focusId, onEnter, onLeave, onActivate, st
 // HTML colors come from the --sap-* variables (see cssVars in theme.js).
 const BTN =
   "border border-[color:var(--sap-ink)] px-3 py-1 text-sm hover:bg-[color:var(--sap-ink)] hover:text-[color:var(--sap-bg)]";
+// The small uppercase heading over a section of the side panel.
+const KICKER = "font-sap-label text-xs font-bold uppercase tracking-wide text-[color:var(--sap-muted)]";
 const BTN_DISABLED =
   "disabled:border-[color:var(--sap-disabled)] disabled:text-[color:var(--sap-disabled)] disabled:hover:bg-transparent";
 
@@ -455,11 +456,11 @@ function Memory({ sim, d }) {
   const isExample = sim.ram.every((v, i) => v === PROGRAM[i]);
   return (
     <section className="mt-6 border-t border-[color:var(--sap-rule)] pt-4">
-      <h3 className="text-xs font-bold uppercase tracking-wide text-[color:var(--sap-muted)]">Memory</h3>
+      <h3 className={KICKER}>Memory</h3>
       <p className="mt-1 text-sm text-[color:var(--sap-soft)]">
         {isExample ? "Example 10-1 from the book: 1 + 2 + 3 − 4." : "Your program. Load example puts Example 10-1 back."}
       </p>
-      <table className="mt-2 w-full font-mono text-[13px]">
+      <table className="mt-2 w-full font-sap-mono text-[13px]">
         <tbody>
           {sim.ram.map((v, i) => {
             const here = d.ramAddr === i;
@@ -508,7 +509,7 @@ const BIT_ON = {
 function BitButton({ caption, label, type, on, onClick, className = "" }) {
   return (
     <span className={`flex flex-col items-center gap-0.5 ${className}`}>
-      <span aria-hidden="true" className="font-mono text-[10px] text-[color:var(--sap-muted)]">
+      <span aria-hidden="true" className="font-sap-mono text-[10px] text-[color:var(--sap-muted)]">
         {caption}
       </span>
       <button
@@ -516,7 +517,7 @@ function BitButton({ caption, label, type, on, onClick, className = "" }) {
         aria-label={label}
         aria-pressed={on}
         onClick={onClick}
-        className={`h-7 w-7 border font-mono text-sm ${
+        className={`h-7 w-7 border font-sap-mono text-sm ${
           on ? BIT_ON[type] : "border-[color:var(--sap-ink)] hover:bg-[color:var(--sap-hover)]"
         }`}
       >
@@ -563,7 +564,7 @@ function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite, below = false }) {
           Write
         </button>
       </div>
-      <p className="mt-2 flex flex-wrap gap-x-4 font-mono text-[13px]">
+      <p className="mt-2 flex flex-wrap gap-x-4 font-sap-mono text-[13px]">
         <span>
           Address <span className="font-bold">{hex(addr, 1)}H</span>
         </span>
@@ -590,8 +591,8 @@ function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite, below = false }) {
 function Panel({ node, path, focus, drill, sim, d, onOpen }) {
   return (
     <aside className="text-[15px] leading-relaxed">
-      <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sap-muted)]">{node.part}</p>
-      <h2 className="text-2xl font-bold">{node.title}</h2>
+      <p className={KICKER}>{node.part}</p>
+      <h2 className="font-sap-label text-2xl font-bold">{node.title}</h2>
       {node.about.map((p, i) => (
         <p key={i} className="mt-2">
           <HtmlText text={p} />
@@ -601,8 +602,8 @@ function Panel({ node, path, focus, drill, sim, d, onOpen }) {
       <section className="mt-6 min-h-[150px] border-t border-[color:var(--sap-rule)] pt-4">
         {focus ? (
           <>
-            <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sap-muted)]">{focus.tag ?? "Part"}</p>
-            <h3 className="text-lg font-bold">
+            <p className={KICKER}>{focus.tag ?? "Part"}</p>
+            <h3 className="font-sap-label text-lg font-bold">
               {focus.title}
               {focus.sub && <span className="font-normal text-[color:var(--sap-muted)]"> · {focus.sub}</span>}
             </h3>
@@ -829,12 +830,13 @@ export default function Sap1Visualizer() {
   return (
     <PaletteContext.Provider value={pal}>
       <div
-        className="min-h-screen bg-[color:var(--sap-bg)] font-sans text-[color:var(--sap-ink)]"
-        style={{ ...cssVars(pal), colorScheme: pal.scheme }}
+        className="min-h-screen bg-[color:var(--sap-bg)] font-sap-body text-[color:var(--sap-ink)]"
+        // No faux bold: Michroma has a single weight, and bold labels set in it stay regular.
+        style={{ ...cssVars(pal), colorScheme: pal.scheme, fontSynthesisWeight: "none" }}
       >
         <main className="mx-auto max-w-6xl px-4 py-10">
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-            <h1 className="text-4xl font-bold">sap-1</h1>
+            <h1 className="font-sap-label text-4xl font-bold">sap-1</h1>
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -906,7 +908,7 @@ export default function Sap1Visualizer() {
                       type="button"
                       aria-pressed={sim.prog === on}
                       onClick={() => setProgSwitch(on)}
-                      className={`border border-[color:var(--sap-ink)] px-2.5 py-1 font-mono text-[13px] ${
+                      className={`border border-[color:var(--sap-ink)] px-2.5 py-1 font-sap-mono text-[13px] ${
                         i ? "-ml-px" : ""
                       } ${
                         sim.prog === on
@@ -952,7 +954,7 @@ export default function Sap1Visualizer() {
                         type="button"
                         aria-pressed={rate === r}
                         onClick={() => setRate(r)}
-                        className={`border border-[color:var(--sap-ink)] px-2 py-1 font-mono text-[12px] ${
+                        className={`border border-[color:var(--sap-ink)] px-2 py-1 font-sap-mono text-[12px] ${
                           i ? "-ml-px" : ""
                         } ${
                           rate === r
@@ -975,7 +977,7 @@ export default function Sap1Visualizer() {
                     Load example
                   </button>
                 </div>
-                <div className="flex gap-1 font-mono text-[13px]" aria-label="T state">
+                <div className="flex gap-1 font-sap-mono text-[13px]" aria-label="T state">
                   {[1, 2, 3, 4, 5, 6].map((t) => (
                     <span
                       key={t}
@@ -991,10 +993,10 @@ export default function Sap1Visualizer() {
                     </span>
                   ))}
                 </div>
-                <div className="font-mono text-[13px]">
+                <div className="font-sap-mono text-[13px]">
                   CON <span className="font-bold">{hex(d.con, 3)}H</span>
                 </div>
-                <div className="font-mono text-[13px]">
+                <div className="font-sap-mono text-[13px]">
                   OUT <span className="font-bold">{bin(sim.out)}</span> = {sim.out}
                 </div>
               </div>

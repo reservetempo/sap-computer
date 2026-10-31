@@ -7,7 +7,11 @@
 //                   status, output
 //   typeOff[t]      an unlit LED of that type
 //   tint[t]         the fill behind an active block of that type
-// In the HTML parts the same colors are CSS variables: --sap-type-address, --sap-led-amber-on, ...
+//   font.label      font stack for titles, section labels and silkscreen lettering
+//   font.body       font stack for running text
+//   font.mono       font stack for numbers, binary and readouts
+// In the HTML parts the same values are CSS variables: --sap-type-address, --sap-led-amber-on,
+// --sap-font-mono, ... The fonts are self-hosted (@fontsource, imported in main.jsx).
 
 import { SIGNAL_TYPES } from "./signalTypes";
 
@@ -32,6 +36,15 @@ const TB = {
   onAccent: "#0d0f12", // text on an accent fill
 };
 
+// 1970s textbook type: a Century Schoolbook-style serif (Source Serif 4 stands in for TeX Gyre
+// Schola, which Fontsource doesn't carry) and a typewriter mono for numbers.
+const TB_SERIF = "'Source Serif 4', 'Century Schoolbook', 'New Century Schoolbook', 'TeX Gyre Schola', Georgia, serif";
+const TB_FONT = {
+  label: TB_SERIF,
+  body: TB_SERIF,
+  mono: "'Courier Prime', 'Courier New', Courier, monospace",
+};
+
 const byType = (f) => Object.fromEntries(SIGNAL_TYPES.map((t) => [t, f(t)]));
 
 // The textbook look has a single accent: every lamp and every signal type is the same red.
@@ -42,6 +55,7 @@ export const TEXTBOOK = {
   type: byType(() => TB.accent),
   typeOff: byType(() => TB.ledOff),
   tint: byType(() => TB.accentTint),
+  font: TB_FONT,
 };
 
 // 1970s front-panel lamps. Period colors only: red, amber, yellow-green and warm incandescent white.
@@ -50,6 +64,15 @@ const LED = {
   amber: { on: "#ffb000", off: "#3a2a00" },
   green: { on: "#8cff3f", off: "#16300c" },
   white: { on: "#ffe8b0", off: "#2e2a20" },
+};
+
+// Instrument-panel lettering: Michroma (after Microgramma / Eurostile, the 1970s panel face) for
+// labels, IBM Plex Mono for readouts and running text.
+const PLEX = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+const GAME_FONT = {
+  label: "Michroma, Eurostile, Microgramma, 'Helvetica Neue', Arial, sans-serif",
+  body: PLEX,
+  mono: PLEX,
 };
 
 // Which lamp color each signal type uses in the game look.
@@ -78,6 +101,7 @@ export const GAME = {
   type: byType((t) => LED[TYPE_LED[t]].on),
   typeOff: byType((t) => LED[TYPE_LED[t]].off),
   tint: byType((t) => LED[TYPE_LED[t]].off),
+  font: GAME_FONT,
 };
 
 // The two looks, by the name the mode toggle stores.

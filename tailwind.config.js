@@ -6,6 +6,10 @@ export default {
       fontFamily: {
         // Helvetica first, as on the original site.
         sans: ["Helvetica", "Arial", "sans-serif"],
+        // The visualizer's fonts, which switch with the mode (theme.js font, via cssVars).
+        "sap-label": "var(--sap-font-label)",
+        "sap-body": "var(--sap-font-body)",
+        "sap-mono": "var(--sap-font-mono)",
       },
     },
   },

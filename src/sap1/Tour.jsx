@@ -117,7 +117,7 @@ const BTN =
 const BTN_GO =
   "border border-[color:var(--sap-led-amber-on)] bg-[color:var(--sap-led-amber-on)] px-3 py-1 text-sm font-bold text-[color:var(--sap-on-accent)] hover:brightness-110";
 const LINK = "text-[12px] text-[color:var(--sap-muted)] underline-offset-2 hover:text-[color:var(--sap-ink)] hover:underline";
-const KICKER = "font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-[color:var(--sap-led-amber-on)]";
+const KICKER = "font-sap-label text-[11px] font-bold uppercase tracking-[0.2em] text-[color:var(--sap-led-amber-on)]";
 
 function Lamp({ color, lit = true, glow = false, className = "" }) {
   return (
@@ -146,7 +146,7 @@ export function TourInvite({ onStart, onDecline, className = "" }) {
       className={`mb-6 border border-[color:var(--sap-led-amber-on)] bg-[color:var(--sap-block)] px-3 py-3 ${className}`}
     >
       <p className={KICKER}>New here?</p>
-      <p className="mt-1 text-lg font-bold">Take the guided tour</p>
+      <p className="mt-1 font-sap-label text-lg font-bold">Take the guided tour</p>
       <p className="mt-1 text-sm text-[color:var(--sap-soft)]">
         {STEPS.length} short missions: switch on, write an instruction, then follow the machine from CLEAR through fetch
         and execute to the answer on the output lamps.
@@ -192,10 +192,10 @@ function MissionBody({ tour, sim, d, onLoadExample, onRestart, heading = true })
     <>
       {heading && (
         <>
-          <p className="font-mono text-[11px] uppercase tracking-wide text-[color:var(--sap-muted)]">
+          <p className="font-sap-label text-[11px] uppercase tracking-wide text-[color:var(--sap-muted)]">
             Mission {view + 1} of {STEPS.length}
           </p>
-          <h3 className="text-lg font-bold">{step.title}</h3>
+          <h3 className="font-sap-label text-lg font-bold">{step.title}</h3>
         </>
       )}
       <p className={heading ? "mt-1" : undefined}>
@@ -214,14 +214,14 @@ function MissionBody({ tour, sim, d, onLoadExample, onRestart, heading = true })
       )}
 
       {watch && (
-        <p className="mt-2 font-mono text-[12px] text-[color:var(--sap-led-white-on)]">
+        <p className="mt-2 font-sap-mono text-[12px] text-[color:var(--sap-led-white-on)]">
           <span className="text-[color:var(--sap-muted)]">Lamps: </span>
           {watch}
         </p>
       )}
 
       {checklist && (
-        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[12px]">
+        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-sap-mono text-[12px]">
           {checklist.map((c) => (
             <li
               key={c.label}
@@ -302,7 +302,7 @@ export function TourPanel({ tour, sim, d, offPanel, onBackToPanel, onLoadExample
     >
       <header className="flex items-center gap-3 border-b border-[color:var(--sap-frame)] bg-[color:var(--sap-block-alt)] px-3 py-1.5">
         <span className={KICKER}>Mission log</span>
-        <span className="font-mono text-[11px] text-[color:var(--sap-muted)]">
+        <span className="font-sap-mono text-[11px] text-[color:var(--sap-muted)]">
           {max}/{STEPS.length}
         </span>
         <button
@@ -310,7 +310,7 @@ export function TourPanel({ tour, sim, d, offPanel, onBackToPanel, onLoadExample
           aria-label="Close the tour"
           title="Close (Tour picks up where you left off)"
           onClick={tour.close}
-          className="ml-auto px-1 font-mono text-base leading-none text-[color:var(--sap-muted)] hover:text-[color:var(--sap-ink)]"
+          className="ml-auto px-1 font-sap-mono text-base leading-none text-[color:var(--sap-muted)] hover:text-[color:var(--sap-ink)]"
         >
           ×
         </button>
@@ -318,7 +318,7 @@ export function TourPanel({ tour, sim, d, offPanel, onBackToPanel, onLoadExample
 
       {offPanel && <OffPanelNote onBackToPanel={onBackToPanel} className="max-lg:hidden" />}
 
-      <ol className="px-3 py-2 font-mono text-[12px] leading-5">
+      <ol className="px-3 py-2 font-sap-mono text-[12px] leading-5">
         {STEPS.map((s, i) => {
           const isDone = i < max;
           const isCurrent = i === max;
@@ -454,7 +454,7 @@ export function TourDock({ tour, sim, d, offPanel, invite, onBackToPanel, onLoad
             className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 pr-1 text-left"
           >
             <Lamp color={done ? "green" : "amber"} glow={!done} className={done ? "" : "motion-safe:animate-pulse"} />
-            <span className="shrink-0 font-mono text-[11px] text-[color:var(--sap-muted)]">
+            <span className="shrink-0 font-sap-mono text-[11px] text-[color:var(--sap-muted)]">
               <span aria-hidden="true">
                 {String(view + 1).padStart(2, "0")}/{STEPS.length}
               </span>
@@ -471,7 +471,7 @@ export function TourDock({ tour, sim, d, offPanel, invite, onBackToPanel, onLoad
             )}
             <span
               aria-hidden="true"
-              className={`ml-auto shrink-0 px-1 font-mono text-[color:var(--sap-muted)] transition-transform duration-200 motion-reduce:transition-none ${
+              className={`ml-auto shrink-0 px-1 font-sap-mono text-[color:var(--sap-muted)] transition-transform duration-200 motion-reduce:transition-none ${
                 expanded ? "" : "rotate-180"
               }`}
             >
@@ -483,7 +483,7 @@ export function TourDock({ tour, sim, d, offPanel, invite, onBackToPanel, onLoad
             aria-label="Close the tour"
             title="Close (Tour picks up where you left off)"
             onClick={tour.close}
-            className="shrink-0 px-3 font-mono text-base leading-none text-[color:var(--sap-muted)] hover:text-[color:var(--sap-ink)]"
+            className="shrink-0 px-3 font-sap-mono text-base leading-none text-[color:var(--sap-muted)] hover:text-[color:var(--sap-ink)]"
           >
             ×
           </button>

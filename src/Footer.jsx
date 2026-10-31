@@ -1,19 +1,21 @@
 import { MAIN_SITE_URL, REPO_URL } from "./config";
+import { GAME } from "./sap1/theme";
 
 // Sits outside the visualizer, so the --sap-* palette variables don't reach it. The colors are
 // neutral greys that read on both the Game and Textbook backgrounds (theme.js), which the
-// visualizer paints onto <html>.
+// visualizer paints onto <html>. It always uses Game mode's fonts (theme.js GAME.font).
 const label = "text-[11px] font-bold uppercase tracking-[0.18em] text-[#8f8e88]";
+const labelFont = { fontFamily: GAME.font.label };
 const link =
   "text-[#e6e4dc] underline decoration-[#5a606c] underline-offset-4 hover:text-white hover:decoration-current " +
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e6e4dc]";
 
 export default function Footer() {
   return (
-    <footer className="mx-auto max-w-6xl px-4 pb-10 font-sans text-sm text-[#b9b7ae]">
+    <footer className="mx-auto max-w-6xl px-4 pb-10 text-sm text-[#b9b7ae]" style={{ fontFamily: GAME.font.body }}>
       <div className="flex flex-col gap-6 border-t border-[#3d4350] pt-6 sm:flex-row sm:justify-between">
         <div className="max-w-2xl space-y-3">
-          <p className={label}>About</p>
+          <p className={label} style={labelFont}>About</p>
           <p>
             An interactive SAP-1 computer you can program and step through, one clock pulse at a time.
           </p>
@@ -23,7 +25,7 @@ export default function Footer() {
           </p>
         </div>
         <nav aria-label="Site links" className="space-y-3 sm:text-right">
-          <p className={label}>Links</p>
+          <p className={label} style={labelFont}>Links</p>
           <ul className="flex flex-wrap gap-x-6 gap-y-2 sm:justify-end">
             <li>
               <a className={link} href={REPO_URL} target="_blank" rel="noopener noreferrer">

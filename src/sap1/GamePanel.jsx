@@ -25,8 +25,8 @@ import { GAME as P } from "./theme";
 import { signalType } from "./signalTypes";
 import { SvgText } from "./sigText";
 
-const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif";
-const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+const FONT = P.font.label; // Michroma silkscreen lettering
+const MONO = P.font.mono; // IBM Plex Mono readouts
 const SILK = P.ink; // off-white silkscreen lettering
 
 export const PANEL = { w: CANVAS.w, h: CANVAS.h };
@@ -176,9 +176,23 @@ function ClockLamp({ x, cy, tick, level }) {
 
 // --- lettering ------------------------------------------------------------------------------
 
+// Michroma runs wide (about 1.45 × Helvetica), so silkscreen lettering is set at SILK_SIZE of the
+// size asked for, with SILK_TRACK of the letter-spacing.
+const SILK_SIZE = 0.82;
+const SILK_TRACK = 0.4;
+
 function Silk({ x, y, size = 9, spacing = 1.5, anchor = "middle", weight = 400, fill = SILK, children }) {
   return (
-    <text x={x} y={y} fontSize={size} fontFamily={FONT} fontWeight={weight} letterSpacing={spacing} textAnchor={anchor} fill={fill}>
+    <text
+      x={x}
+      y={y}
+      fontSize={size * SILK_SIZE}
+      fontFamily={FONT}
+      fontWeight={weight}
+      letterSpacing={spacing * SILK_TRACK}
+      textAnchor={anchor}
+      fill={fill}
+    >
       {children}
     </text>
   );
@@ -857,10 +871,10 @@ function PushButton({ x, legend, above, below, color = "white", disabled, label,
           <text
             x={x}
             y={PIVOT_Y + 3}
-            fontSize={8}
+            fontSize={6.5}
             fontFamily={FONT}
             fontWeight={700}
-            letterSpacing={1}
+            letterSpacing={0.3}
             textAnchor="middle"
             fill={lit ? "#2a1a08" : mix(led.on, P.ink, 0.55)}
             opacity={lit ? 1 : 0.8}
