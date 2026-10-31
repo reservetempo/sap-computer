@@ -11,9 +11,9 @@
 ## Next
 
 
-
 ## After Next
 
+- The user should try pinch zoom on a real iPhone (task 9): a pinch should zoom the diagram and no longer open Safari's tab overview, and one-finger page scrolling should still work at normal size. Emulation can't show Safari's own gestures.
 - Back in `C:\Users\DomPC\Desktop\websites\dominic_my_website`, task 11 of its plan (remove `/sap1`, point the homepage link at the new site) waits for the user to confirm the new site's URL; it's live at https://reservetempo.github.io/sap-computer/. Fill `MAIN_SITE_URL` here at the same time if they give the main site's URL.
 
 ## Done
