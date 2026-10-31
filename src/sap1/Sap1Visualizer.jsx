@@ -21,6 +21,7 @@ import { TEXTBOOK as P, cssVars } from "./theme";
 import { signalType } from "./signalTypes";
 import { HtmlText, SvgText } from "./sigText";
 import { PULSE_CSS, Pulse, bitsMarker, mix, trimEnd } from "./drawing";
+import { useDiagramZoom } from "./useDiagramZoom";
 
 // The color palette is P (theme.js TEXTBOOK). SVG parts read it directly; HTML parts use the
 // matching CSS variables (--sap-*) set on the page root. An active part is drawn in the color of
@@ -710,6 +711,10 @@ export default function Sap1Visualizer() {
   const narrowRef = useRef(narrow);
   narrowRef.current = narrow;
 
+  // The level's fitted viewBox; pinch / trackpad zoom is a sub-rectangle of it.
+  const full = fullBox(canvasAt(path, narrow));
+  const { zoomed, reset: resetZoom, isZoomed } = useDiagramZoom({ frameRef, svgRef, base: full, busyRef: busy });
+
   // Measured before the first paint, and again whenever the frame changes width.
   useLayoutEffect(() => {
     const el = frameRef.current;
@@ -746,6 +751,8 @@ export default function Sap1Visualizer() {
   const navigate = useCallback(async (next, { push = true, force = false } = {}) => {
     const cur = pathRef.current;
     if (busy.current && !force) return;
+    // Opening a part, going back or a hash change drops any pinch zoom first.
+    resetZoom();
     // A zoom still in flight stops at its next frame.
     const token = ++animToken.current;
     targetRef.current = next;
@@ -805,6 +812,8 @@ export default function Sap1Visualizer() {
     const onKey = (e) => {
       // An open menu takes Esc first (it prevents the default).
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      // A pinch-zoomed diagram goes back to fit first.
+      if (isZoomed()) return resetZoom(true);
       // Mid-zoom, go up from where the zoom is heading: that cancels a zoom in, and a second Esc
       // while zooming out goes up one more level.
       const at = busy.current ? targetRef.current : pathRef.current;
@@ -843,7 +852,6 @@ export default function Sap1Visualizer() {
   // The diagram on view: the upright overview on a phone, else node.diagram.
   const tall = isTall(path, narrow);
   const dg = diagramAt(path, narrow) ?? node.diagram;
-  const full = fullBox(canvasAt(path, narrow));
 
   const focusId = hoverId ?? selectedId;
   const focus = dg.blocks.find((b) => b.id === focusId);
@@ -1034,51 +1042,77 @@ export default function Sap1Visualizer() {
             )}
 
             {/* Below 680px wide the frame scrolls sideways, except for the upright overview,
-                which fits a phone. */}
-            <div ref={frameRef} className="overflow-x-auto border border-[color:var(--sap-frame)]">
-              <svg
-                ref={svgRef}
-                viewBox={full.join(" ")}
-                className={`block h-auto w-full ${
-                  tall ? "" : "min-w-[680px]"
-                } touch-manipulation select-none outline-none`}
-                tabIndex={-1}
-                role="group"
-                aria-label={`${node.title} diagram`}
+                which fits a phone. Pinches over it zoom the diagram, not the page: at fit one
+                finger still scrolls (pan-x pan-y), while zoomed every touch is the diagram's. */}
+            <div className="relative">
+              <div
+                ref={frameRef}
+                className={`overflow-x-auto border border-[color:var(--sap-frame)] ${
+                  zoomed ? "cursor-grab touch-none" : "touch-pan-x touch-pan-y"
+                }`}
               >
-                <defs>
-                  <style>{PULSE_CSS}</style>
-                  {[["off", P.ink], ...Object.entries(P.type)].map(([id, color]) => (
-                    <marker
-                      key={id}
-                      id={`sap1-arrow-${id}`}
-                      viewBox="0 0 10 10"
-                      refX={9}
-                      refY={5}
-                      markerWidth={9}
-                      markerHeight={9}
-                      markerUnits="userSpaceOnUse"
-                      orient="auto-start-reverse"
-                    >
-                      <path d="M0,1 L10,5 L0,9 z" fill={color} />
-                    </marker>
-                  ))}
-                </defs>
-                <g ref={sceneRef}>
-                  <Diagram
-                    node={node}
-                    dg={dg}
-                    path={path}
-                    sim={sim}
-                    d={d}
-                    focusId={focusId}
-                    onEnter={onEnter}
-                    onLeave={onLeave}
-                    onActivate={onActivate}
-                    stepMs={stepMs}
-                  />
-                </g>
-              </svg>
+                <svg
+                  ref={svgRef}
+                  viewBox={full.join(" ")}
+                  className={`block h-auto w-full ${tall ? "" : "min-w-[680px]"} ${
+                    zoomed ? "touch-none" : "touch-pan-x touch-pan-y"
+                  } select-none outline-none`}
+                  tabIndex={-1}
+                  role="group"
+                  aria-label={`${node.title} diagram`}
+                >
+                  <defs>
+                    <style>{PULSE_CSS}</style>
+                    {[["off", P.ink], ...Object.entries(P.type)].map(([id, color]) => (
+                      <marker
+                        key={id}
+                        id={`sap1-arrow-${id}`}
+                        viewBox="0 0 10 10"
+                        refX={9}
+                        refY={5}
+                        markerWidth={9}
+                        markerHeight={9}
+                        markerUnits="userSpaceOnUse"
+                        orient="auto-start-reverse"
+                      >
+                        <path d="M0,1 L10,5 L0,9 z" fill={color} />
+                      </marker>
+                    ))}
+                  </defs>
+                  <g ref={sceneRef}>
+                    <Diagram
+                      node={node}
+                      dg={dg}
+                      path={path}
+                      sim={sim}
+                      d={d}
+                      focusId={focusId}
+                      onEnter={onEnter}
+                      onLeave={onLeave}
+                      onActivate={onActivate}
+                      stepMs={stepMs}
+                    />
+                  </g>
+                </svg>
+              </div>
+              {zoomed && (
+                <button
+                  type="button"
+                  aria-label="Reset zoom"
+                  title="Reset zoom (Esc)"
+                  onClick={() => {
+                    resetZoom(true);
+                    svgRef.current?.focus({ preventScroll: true });
+                  }}
+                  className="absolute right-2 top-2 flex items-center gap-1 border border-[color:var(--sap-ink)] bg-[color:var(--sap-bg)] px-2 py-1 text-xs hover:bg-[color:var(--sap-ink)] hover:text-[color:var(--sap-bg)]"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.6}>
+                    <circle cx={6.5} cy={6.5} r={4.5} />
+                    <path d="M4.5 6.5h4M10 10l4.5 4.5" strokeLinecap="round" />
+                  </svg>
+                  Reset zoom
+                </button>
+              )}
             </div>
 
             <p className="border border-t-0 border-[color:var(--sap-frame)] px-3 py-2 text-sm" aria-live="polite">

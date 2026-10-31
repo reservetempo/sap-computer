@@ -2,6 +2,8 @@
 
 An interactive visualizer of the SAP-1 ("Simple-As-Possible") computer from Albert Malvino and Jerald Brown's *Digital Computer Electronics* (chapter 10). It draws the machine as the book's block diagram: write your own program into memory, step the clock through each T state and watch the control signals and buses light up, and click any part to zoom into it. Built with Vite, React and Tailwind; it runs entirely in the browser.
 
+To zoom into the diagram itself, pinch it (on a phone or a trackpad) or Ctrl+scroll, then drag to pan; Reset zoom or Esc goes back to the fitted view.
+
 ```sh
 npm install
 npm run dev     # dev server at http://localhost:5173
