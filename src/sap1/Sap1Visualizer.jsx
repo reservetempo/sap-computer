@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { CANVAS, ROOT, nodeAt, cleanPath, decodeWord } from "./sap1Parts";
+import { CANVAS, ROOT, ROOT_TALL, nodeAt, cleanPath, decodeWord } from "./sap1Parts";
 import {
   CON_ORDER,
   PROGRAM,
@@ -30,7 +30,6 @@ import { TourDock, TourInvite, TourPanel, useTour } from "./Tour";
 const PaletteContext = createContext(TEXTBOOK);
 const usePalette = () => useContext(PaletteContext);
 
-const FULL = [0, 0, CANVAS.w, CANVAS.h];
 // The free-running clock's period for each rate setting (the toolbar's and the panel's CLOCK switch).
 export const STEP_MS = { slow: 1200, med: 550, fast: 150 };
 const RATE_LABELS = [
@@ -57,12 +56,13 @@ const smooth = (a, b, t) => {
   return x * x * (3 - 2 * x);
 };
 const lerpBox = (p, q, t) => p.map((v, i) => v + (q[i] - v) * t);
-const growBox = (k) => [(-(k - 1) * CANVAS.w) / 2, (-(k - 1) * CANVAS.h) / 2, CANVAS.w * k, CANVAS.h * k];
+const fullBox = (c) => [0, 0, c.w, c.h];
+const growBox = (c, k) => [(-(k - 1) * c.w) / 2, (-(k - 1) * c.h) / 2, c.w * k, c.h * k];
 
-// The block's rectangle, padded and widened to the canvas aspect ratio.
-function fitBox(b, pad = 24) {
+// The block's rectangle, padded and widened to the aspect ratio of canvas c.
+function fitBox(b, c, pad = 24) {
   let [x, y, w, h] = [b.x - pad, b.y - pad, b.w + 2 * pad, b.h + 2 * pad];
-  const ar = CANVAS.w / CANVAS.h;
+  const ar = c.w / c.h;
   if (w / h > ar) {
     const nh = w / ar;
     y -= (nh - h) / 2;
@@ -89,10 +89,17 @@ function tween(ms, alive, frame) {
   });
 }
 
+// A frame narrower than this (px) draws the textbook overview upright (ROOT_TALL in sap1Parts.js).
+const TALL_BELOW = 600;
+const isTall = (mode, p, narrow) => narrow && mode === "textbook" && p.length === 0;
+// The diagram drawn on level `p`, and the canvas it is drawn on.
+const diagramAt = (mode, p, narrow) => (isTall(mode, p, narrow) ? ROOT_TALL : nodeAt(p)?.diagram);
+const canvasAt = (mode, p, narrow) => (isTall(mode, p, narrow) ? ROOT_TALL.canvas : CANVAS);
+
 // The box part `id` is drawn in on level `p`: its section on the game front panel (the overview in
 // game mode), otherwise its block in the diagram.
-const partBox = (mode, p, id) =>
-  mode === "game" && p.length === 0 ? PANEL_BOXES[id] : nodeAt(p)?.diagram.blocks.find((b) => b.id === id);
+const partBox = (mode, p, id, narrow) =>
+  mode === "game" && p.length === 0 ? PANEL_BOXES[id] : diagramAt(mode, p, narrow)?.blocks.find((b) => b.id === id);
 
 const pathFromHash = () =>
   cleanPath(window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean));
@@ -102,8 +109,8 @@ const pathFromHash = () =>
 // (gameParts.jsx), from the same data.
 
 // A connection; while lit, a pulse runs along it from driver (first point) to loader (last point)
-// once per clock period stepMs.
-function Wire({ w, d, stepMs }) {
+// once per clock period stepMs. Font sizes go through f, the diagram's minimum (see Diagram).
+function Wire({ w, d, stepMs, f }) {
   const P = usePalette();
   const on = Boolean(w.on && d.sig.has(w.on));
   const type = signalType(w);
@@ -143,7 +150,7 @@ function Wire({ w, d, stepMs }) {
             x={m.h ? m.x : m.x + 10}
             y={m.h ? m.y + 19 : m.y + 4}
             textAnchor={m.h ? "middle" : "start"}
-            fontSize={11}
+            fontSize={f(11)}
             fill={on ? color : P.muted}
           >
             {w.bits}
@@ -152,7 +159,7 @@ function Wire({ w, d, stepMs }) {
       )}
       {w.dots?.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={3.5} fill={color} />)}
       {w.label && (
-        <text x={w.labelAt[0]} y={w.labelAt[1]} textAnchor={w.anchor ?? "middle"} fontSize={12} fill={on ? color : P.muted}>
+        <text x={w.labelAt[0]} y={w.labelAt[1]} textAnchor={w.anchor ?? "middle"} fontSize={f(12)} fill={on ? color : P.muted}>
           <SvgText text={w.label} />
         </text>
       )}
@@ -160,7 +167,7 @@ function Wire({ w, d, stepMs }) {
   );
 }
 
-function Pin({ p, d }) {
+function Pin({ p, d, f }) {
   const P = usePalette();
   const on = CON_ORDER.includes(p.sig) && d.sig.has(p.sig);
   const color = on ? P.type[signalType(p)] : P.ink;
@@ -174,14 +181,14 @@ function Pin({ p, d }) {
   return (
     <g>
       <line x1={x} y1={y} x2={x2} y2={y2} stroke={color} strokeWidth={on ? 2.5 : 1.5} />
-      <text x={lx} y={ly} textAnchor={anchor} fontSize={13} fontWeight={on ? 700 : 400} fill={color}>
+      <text x={lx} y={ly} textAnchor={anchor} fontSize={f(13)} fontWeight={on ? 700 : 400} fill={color}>
         <SvgText text={`{${p.sig}}`} />
       </text>
     </g>
   );
 }
 
-function Group({ g, sim, d, path }) {
+function Group({ g, sim, d, path, f }) {
   const P = usePalette();
   const active = g.act?.some((k) => d.sig.has(k));
   const hot = P.type[signalType(g, { d, path })];
@@ -199,11 +206,11 @@ function Group({ g, sim, d, path }) {
         strokeWidth={active ? 2 : 1.2}
         strokeDasharray="5 4"
       />
-      <text x={g.x + 10} y={g.y + 19} fontSize={11} letterSpacing={0.6} fill={P.muted}>
+      <text x={g.x + 10} y={g.y + 19} fontSize={f(11)} letterSpacing={0.6} fill={P.muted}>
         {g.label.toUpperCase()}
       </text>
       {value && (
-        <text x={g.x + g.w - 10} y={g.y + 19} textAnchor="end" fontSize={12.5} fontFamily={P.font.mono} fill={active ? hot : P.ink}>
+        <text x={g.x + g.w - 10} y={g.y + 19} textAnchor="end" fontSize={f(12.5)} fontFamily={P.font.mono} fill={active ? hot : P.ink}>
           {value}
         </text>
       )}
@@ -211,16 +218,18 @@ function Group({ g, sim, d, path }) {
   );
 }
 
-function Leds({ cx, cy, value }) {
+// Eight LEDs across a block w wide: 22 apart, or closer in a narrow block.
+function Leds({ cx, cy, value, w }) {
   const P = usePalette();
+  const step = Math.min(22, (w - 20) / 8);
   return Array.from({ length: 8 }, (_, i) => {
     const lit = (value >> (7 - i)) & 1;
     return (
       <circle
         key={i}
-        cx={cx - 77 + i * 22}
+        cx={cx + (i - 3.5) * step}
         cy={cy}
-        r={7}
+        r={Math.min(7, step * 0.4)}
         fill={lit ? P.type.output : P.typeOff.output}
         stroke={lit ? P.type.output : P.frame}
         strokeWidth={1.5}
@@ -229,42 +238,46 @@ function Leds({ cx, cy, value }) {
   });
 }
 
-function ConRow({ b, d }) {
+// The control word, in b.rows rows (one by default).
+function ConRow({ b, d, f }) {
   const P = usePalette();
-  const cell = b.w / CON_ORDER.length;
+  const rows = b.rows ?? 1;
+  const per = Math.ceil(CON_ORDER.length / rows);
+  const [cw, ch] = [b.w / per, b.h / rows];
   const mid = b.y + b.h / 2 + 5;
   return (
     <g>
       {CON_ORDER.map((k, i) => {
         const on = d.sig.has(k);
+        const [x, y] = [b.x + (i % per) * cw, b.y + Math.floor(i / per) * ch];
         return (
           <g key={k}>
             <rect
-              x={b.x + i * cell}
-              y={b.y}
-              width={cell}
-              height={b.h}
+              x={x}
+              y={y}
+              width={cw}
+              height={ch}
               fill={on ? P.type.control : P.block}
               stroke={P.ink}
               strokeWidth={1.2}
             />
-            <text x={b.x + (i + 0.5) * cell} y={mid - 2} textAnchor="middle" fontSize={13} fill={on ? P.onAccent : P.ink}>
+            <text x={x + cw / 2} y={y + ch / 2 + 3} textAnchor="middle" fontSize={f(13)} fill={on ? P.onAccent : P.ink}>
               <SvgText text={`{${k}}`} />
             </text>
           </g>
         );
       })}
-      <text x={b.x - 8} y={mid} textAnchor="end" fontSize={13} fontWeight={700} fill={P.ink}>
+      <text x={b.x - 8} y={mid} textAnchor="end" fontSize={f(13)} fontWeight={700} fill={P.ink}>
         CON
       </text>
-      <text x={b.x + b.w + 8} y={mid} fontSize={13} fontFamily={P.font.mono} fill={P.ink}>
+      <text x={b.x + b.w + 8} y={mid} fontSize={f(13)} fontFamily={P.font.mono} fill={P.ink}>
         {hex(d.con, 3)}H
       </text>
     </g>
   );
 }
 
-function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }) {
+function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate, f }) {
   const P = usePalette();
   const active = b.kind === "bus" ? d.bus !== null : Boolean(b.act?.some((k) => d.sig.has(k)));
   const type = signalType(b, { d, path });
@@ -291,7 +304,7 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
   if (b.kind === "con") {
     return (
       <g {...handlers}>
-        <ConRow b={b} d={d} />
+        <ConRow b={b} d={d} f={f} />
         {focused && <rect x={b.x - 3} y={b.y - 3} width={b.w + 6} height={b.h + 6} fill="none" stroke={P.ink} strokeWidth={2} />}
       </g>
     );
@@ -311,7 +324,7 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
           stroke={active ? hot : P.ink}
           strokeWidth={active || focused ? 2.5 : 1.5}
         />
-        <text x={cx} y={b.y - 8} textAnchor="middle" fontSize={13} fontWeight={700} fill={P.ink}>
+        <text x={cx} y={b.y - 8} textAnchor="middle" fontSize={f(13)} fontWeight={700} fill={P.ink}>
           {b.title}
         </text>
         <text
@@ -319,7 +332,7 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
           y={cy + 4.5}
           transform={`rotate(-90 ${cx} ${cy})`}
           textAnchor="middle"
-          fontSize={13}
+          fontSize={f(13)}
           fontFamily={P.font.mono}
           fill={active ? hot : P.muted}
         >
@@ -329,10 +342,11 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
     );
   }
 
+  // The title (or its label, split over lines), sub, and value (a string, or one line per entry).
   const value = b.value?.(sim, d);
-  const lines = [{ text: b.title, size: 15, weight: 700, fill: P.ink }];
-  if (b.sub) lines.push({ text: b.sub, size: 12, fill: P.muted });
-  if (value != null) lines.push({ text: value, size: 13, mono: true, fill: active ? hot : P.ink });
+  const lines = [].concat(b.label ?? b.title).map((text) => ({ text, size: f(15), weight: 700, fill: P.ink }));
+  if (b.sub) lines.push({ text: b.sub, size: f(12), fill: P.muted });
+  for (const text of [].concat(value ?? [])) lines.push({ text, size: f(13), mono: true, fill: active ? hot : P.ink });
   if (b.kind === "display") lines.push({ leds: true, size: 16 });
   const gap = 6;
   const total = lines.reduce((sum, l) => sum + l.size, 0) + gap * (lines.length - 1);
@@ -352,7 +366,7 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
         strokeWidth={active || focused ? 2.5 : 1.5}
       />
       {b.tag && (
-        <text x={b.x + 8} y={b.y + 15} fontSize={11} fill={P.muted}>
+        <text x={b.x + 8} y={b.y + 15} fontSize={f(11)} fill={P.muted}>
           {b.tag}
         </text>
       )}
@@ -369,7 +383,7 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
       {lines.map((l, i) => {
         const top = cursor;
         cursor += l.size + gap;
-        if (l.leds) return <Leds key={i} cx={cx} cy={top + l.size / 2} value={sim.out} />;
+        if (l.leds) return <Leds key={i} cx={cx} cy={top + l.size / 2} value={sim.out} w={b.w} />;
         return (
           <text
             key={i}
@@ -389,16 +403,18 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate }
   );
 }
 
-function Diagram({ node, path, sim, d, focusId, onEnter, onLeave, onActivate, stepMs }) {
+// Draws diagram dg of level `node` (node.diagram, or the upright overview on a phone).
+function Diagram({ node, dg = node.diagram, path, sim, d, focusId, onEnter, onLeave, onActivate, stepMs }) {
   const P = usePalette();
-  const dg = node.diagram;
+  // Font sizes, raised to the diagram's minimum where it sets one.
+  const f = (size) => Math.max(size, dg.minFont ?? 0);
   return (
     <>
-      {dg.groups?.map((g, i) => <Group key={`g${i}`} g={g} sim={sim} d={d} path={path} />)}
-      {dg.wires?.map((w, i) => <Wire key={`w${i}`} w={w} d={d} stepMs={stepMs} />)}
-      {dg.pins?.map((p, i) => <Pin key={`p${i}`} p={p} d={d} />)}
+      {dg.groups?.map((g, i) => <Group key={`g${i}`} g={g} sim={sim} d={d} path={path} f={f} />)}
+      {dg.wires?.map((w, i) => <Wire key={`w${i}`} w={w} d={d} stepMs={stepMs} f={f} />)}
+      {dg.pins?.map((p, i) => <Pin key={`p${i}`} p={p} d={d} f={f} />)}
       {dg.notes?.map((n, i) => (
-        <text key={`n${i}`} x={n.at[0]} y={n.at[1]} textAnchor={n.anchor ?? "middle"} fontSize={11.5} fill={P.muted}>
+        <text key={`n${i}`} x={n.at[0]} y={n.at[1]} textAnchor={n.anchor ?? "middle"} fontSize={f(11.5)} fill={P.muted}>
           <SvgText text={n.text} />
         </text>
       ))}
@@ -414,6 +430,7 @@ function Diagram({ node, path, sim, d, focusId, onEnter, onLeave, onActivate, st
           onEnter={onEnter}
           onLeave={onLeave}
           onActivate={onActivate}
+          f={f}
         />
       ))}
     </>
@@ -641,13 +658,29 @@ export default function Sap1Visualizer() {
   const [hoverId, setHoverId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
 
+  // A diagram frame narrower than TALL_BELOW (a phone) draws the textbook overview upright.
+  const [narrow, setNarrow] = useState(false);
+
   const svgRef = useRef(null);
   const sceneRef = useRef(null);
+  const frameRef = useRef(null);
   const pathRef = useRef([]);
   const animToken = useRef(0);
   const busy = useRef(false);
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  const narrowRef = useRef(narrow);
+  narrowRef.current = narrow;
+
+  // Measured before the first paint, and again whenever the frame changes width.
+  useLayoutEffect(() => {
+    const el = frameRef.current;
+    const measure = () => setNarrow(el.clientWidth < TALL_BELOW);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const node = nodeAt(path) ?? ROOT;
   const d = useMemo(() => derive(sim), [sim]);
@@ -682,8 +715,11 @@ export default function Sap1Visualizer() {
     if (busy.current && !force) return;
     const token = ++animToken.current;
     const alive = () => animToken.current === token;
+    // Each level is drawn on its own canvas (the upright overview's is tall).
+    const canvas = (p) => canvasAt(modeRef.current, p, narrowRef.current);
+    const box = (p, id) => partBox(modeRef.current, p, id, narrowRef.current);
     const done = () => {
-      setView(FULL, 1);
+      setView(fullBox(canvas(pathRef.current)), 1);
       busy.current = false;
     };
 
@@ -696,20 +732,21 @@ export default function Sap1Visualizer() {
     }
 
     busy.current = true;
+    const [c, n] = [canvas(cur), canvas(next)];
     if (into) {
-      const blk = partBox(modeRef.current, cur, next[next.length - 1]);
-      const target = blk ? fitBox(blk) : growBox(0.6);
-      if (!(await tween(380, alive, (t) => setView(lerpBox(FULL, target, ease(t)), 1 - smooth(0.55, 1, t))))) return;
+      const blk = box(cur, next[next.length - 1]);
+      const target = blk ? fitBox(blk, c) : growBox(c, 0.6);
+      if (!(await tween(380, alive, (t) => setView(lerpBox(fullBox(c), target, ease(t)), 1 - smooth(0.55, 1, t))))) return;
       commit(next, push);
-      setView(growBox(1.35), 0);
-      if (!(await tween(280, alive, (t) => setView(lerpBox(growBox(1.35), FULL, easeOut(t)), t)))) return;
+      setView(growBox(n, 1.35), 0);
+      if (!(await tween(280, alive, (t) => setView(lerpBox(growBox(n, 1.35), fullBox(n), easeOut(t)), t)))) return;
     } else {
-      if (!(await tween(200, alive, (t) => setView(lerpBox(FULL, growBox(1.35), ease(t)), 1 - t)))) return;
+      if (!(await tween(200, alive, (t) => setView(lerpBox(fullBox(c), growBox(c, 1.35), ease(t)), 1 - t)))) return;
       commit(next, push);
-      const blk = partBox(modeRef.current, next, cur[next.length]);
-      const from = blk ? fitBox(blk) : growBox(0.8);
+      const blk = box(next, cur[next.length]);
+      const from = blk ? fitBox(blk, n) : growBox(n, 0.8);
       setView(from, 0);
-      if (!(await tween(380, alive, (t) => setView(lerpBox(from, FULL, ease(t)), smooth(0, 0.45, t))))) return;
+      if (!(await tween(380, alive, (t) => setView(lerpBox(from, fullBox(n), ease(t)), smooth(0, 0.45, t))))) return;
     }
     done();
   }, []);
@@ -812,8 +849,13 @@ export default function Sap1Visualizer() {
     />
   );
 
+  // The diagram on view: the upright overview on a phone in textbook mode, else node.diagram.
+  const tall = isTall(mode, path, narrow);
+  const dg = diagramAt(mode, path, narrow) ?? node.diagram;
+  const full = fullBox(canvasAt(mode, path, narrow));
+
   const focusId = hoverId ?? selectedId;
-  const focus = node.diagram.blocks.find((b) => b.id === focusId);
+  const focus = dg.blocks.find((b) => b.id === focusId);
 
   const crumbs = [{ title: "SAP-1", path: [] }].concat(
     path.map((_, i) => ({ title: nodeAt(path.slice(0, i + 1)).title, path: path.slice(0, i + 1) }))
@@ -1005,11 +1047,15 @@ export default function Sap1Visualizer() {
                   switches out from under the pointer. */}
               {sim.prog && !showPanel && progSwitches}
 
-              <div className="overflow-x-auto border border-[color:var(--sap-frame)]">
+              {/* Below 680px wide the frame scrolls sideways, except for the upright overview,
+                  which fits a phone. */}
+              <div ref={frameRef} className="overflow-x-auto border border-[color:var(--sap-frame)]">
                 <svg
                   ref={svgRef}
-                  viewBox={FULL.join(" ")}
-                  className="block h-auto w-full min-w-[680px] touch-manipulation select-none outline-none"
+                  viewBox={full.join(" ")}
+                  className={`block h-auto w-full ${
+                    tall ? "" : "min-w-[680px]"
+                  } touch-manipulation select-none outline-none`}
                   tabIndex={-1}
                   role="group"
                   aria-label={showPanel ? "SAP-1 front panel" : `${node.title} diagram`}
@@ -1065,6 +1111,7 @@ export default function Sap1Visualizer() {
                     ) : (
                       <Diagram
                         node={node}
+                        dg={dg}
                         path={path}
                         sim={sim}
                         d={d}

@@ -1,7 +1,7 @@
 // The SAP-1 as a tree of diagrams. Each node has a diagram; a block whose id appears in
 // node.children can be clicked to open that child. To add more detail, add a child node.
 //
-// Every diagram is drawn on the same 820 × 600 canvas.
+// Every diagram is drawn on the same 820 × 600 canvas, except ROOT_TALL (the overview on a phone).
 // Text can include signal tokens like {Lm} or {CLK_}; see SIG in sap1Sim.js.
 //
 // Block:  { id, x, y, w, h, kind?, tag?, title, sub?, value?(s, d), act?: [signals], about }
@@ -484,6 +484,72 @@ export const ROOT = {
     ],
   },
   children: { pc, mar, ram, ir, ctrl, a, alu, b, out },
+};
+
+// --- level 1 on a phone: the same diagram stood upright --------------------------------------
+// A narrow frame draws the textbook overview from this instead (see Sap1Visualizer.jsx): the same
+// two columns either side of the W bus, but with narrower blocks on a tall canvas, the control
+// pins on top of the blocks and CON in two rows. The blocks keep their ids, titles, notes and
+// signals from ROOT. Extra fields:
+//   canvas            this diagram's own size (others use CANVAS)
+//   minFont           no text is drawn smaller than this, so it stays readable at phone width
+//   block.label       the title as drawn, one line per entry (the info panel still shows title)
+//   block.value(...)  may return an array: one line per entry
+//   con block.rows    the control word in this many rows
+
+const ROOT_BLOCKS = Object.fromEntries(ROOT.diagram.blocks.map((b) => [b.id, b]));
+const TALL_AT = {
+  pc: { x: 8, y: 76, w: 150, h: 88 },
+  mar: { x: 8, y: 212, w: 150, h: 88 },
+  ram: { x: 8, y: 348, w: 150, h: 96, value: (s) => [`[${hex(ramAddr(s), 1)}H]`, bin(s.ram[ramAddr(s)])] },
+  ir: { x: 8, y: 492, w: 150, h: 104, label: ['Instruction', 'register'], value: (s) => [bin(s.ir), decodeWord(s.ir) ?? 'NOP'] },
+  ctrl: { x: 8, y: 644, w: 150, h: 104, label: ['Controller-', 'sequencer'],
+    value: (s, d) => (s.prog ? ['PROG', 'clock stopped'] : ROOT_BLOCKS.ctrl.value(s, d)) },
+  a: { x: 242, y: 76, w: 150, h: 88 },
+  alu: { x: 242, y: 212, w: 150, h: 88 },
+  b: { x: 242, y: 348, w: 150, h: 96 },
+  out: { x: 242, y: 492, w: 150, h: 104 },
+  display: { x: 242, y: 644, w: 150, h: 104 },
+  bus: { x: 188, y: 36, w: 24, h: 560 },
+  con: { x: 48, y: 800, w: 304, h: 76, rows: 2 },
+};
+
+export const ROOT_TALL = {
+  canvas: { w: 400, h: 900 },
+  minFont: 13.5,
+  blocks: ROOT.diagram.blocks.map((b) => ({ ...b, ...TALL_AT[b.id] })),
+  wires: [
+    { pts: [[158, 120], [188, 120]], bits: 4, on: 'Ep' },
+    { pts: [[188, 256], [158, 256]], bits: 4, on: 'Lm' },
+    { pts: [[98, 300], [98, 348]], bits: 4, on: 'CE' },
+    { pts: [[158, 396], [188, 396]], bits: 8, on: 'CE' },
+    { pts: [[188, 520], [158, 520]], bits: 8, on: 'Li' },
+    { pts: [[158, 568], [188, 568]], bits: 4, on: 'Ei' },
+    { pts: [[98, 596], [98, 644]], bits: 4, type: 'data' },
+    { pts: [[212, 104], [242, 104]], bits: 8, on: 'La' },
+    { pts: [[242, 136], [212, 136]], bits: 8, on: 'Ea' },
+    { pts: [[302, 164], [302, 212]], bits: 8 },
+    { pts: [[242, 256], [212, 256]], bits: 8, on: 'Eu' },
+    { pts: [[302, 348], [302, 300]], bits: 8 },
+    { pts: [[212, 396], [242, 396]], bits: 8, on: 'Lb' },
+    { pts: [[212, 544], [242, 544]], bits: 8, on: 'Lo' },
+    { pts: [[302, 596], [302, 644]], bits: 8, type: 'output' },
+    { pts: [[98, 748], [98, 800]], bits: 12 },
+  ],
+  pins: [
+    { sig: 'Cp', at: [28, 76], dir: 'up', len: 14 },
+    { sig: 'Ep', at: [58, 76], dir: 'up', len: 14 },
+    { sig: 'Lm', at: [28, 212], dir: 'up', len: 14 },
+    { sig: 'CE', at: [28, 348], dir: 'up', len: 14 },
+    { sig: 'Li', at: [28, 492], dir: 'up', len: 14 },
+    { sig: 'Ei', at: [58, 492], dir: 'up', len: 14 },
+    { sig: 'La', at: [342, 76], dir: 'up', len: 14 },
+    { sig: 'Ea', at: [372, 76], dir: 'up', len: 14 },
+    { sig: 'Su', at: [342, 212], dir: 'up', len: 14 },
+    { sig: 'Eu', at: [372, 212], dir: 'up', len: 14 },
+    { sig: 'Lb', at: [372, 348], dir: 'up', len: 14 },
+    { sig: 'Lo', at: [372, 492], dir: 'up', len: 14 },
+  ],
 };
 
 // The instruction an 8-bit word stands for ('LDA 9H', 'OUT', ...), or null if its op code isn't
