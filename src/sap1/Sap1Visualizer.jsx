@@ -32,10 +32,11 @@ const usePalette = () => useContext(PaletteContext);
 
 // The free-running clock's period for each rate setting (the toolbar's and the panel's CLOCK switch).
 export const STEP_MS = { slow: 1200, med: 550, fast: 150 };
+// [rate, label, the short label a phone shows]
 const RATE_LABELS = [
-  ["slow", "Slow"],
-  ["med", "Med"],
-  ["fast", "Fast"],
+  ["slow", "Slow", "›"],
+  ["med", "Med", "››"],
+  ["fast", "Fast", "›››"],
 ];
 const MODE_KEY = "sap1-mode"; // localStorage: "game" | "textbook"
 
@@ -103,6 +104,7 @@ const partBox = (mode, p, id, narrow) =>
 
 const pathFromHash = () =>
   cleanPath(window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean));
+const urlFor = (p) => (p.length ? `#/${p.join("/")}` : window.location.pathname + window.location.search);
 
 // --- diagram pieces -------------------------------------------------------------------------
 // The textbook drawing. Game mode draws the levels below the front panel as hardware instead
@@ -446,6 +448,68 @@ const BTN =
 const KICKER = "font-sap-label text-xs font-bold uppercase tracking-wide text-[color:var(--sap-muted)]";
 const BTN_DISABLED =
   "disabled:border-[color:var(--sap-disabled)] disabled:text-[color:var(--sap-disabled)] disabled:hover:bg-transparent";
+// A BTN made smaller on phones (below sm).
+const BTN_PHONE = "max-sm:whitespace-nowrap max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[12px]";
+
+// Phones only (it is sm:hidden): a "More" disclosure button and the panel it opens under itself.
+// It closes on a tap or click outside, when focus moves out of it, and on Esc, which it takes
+// (preventing the default) before the page's Esc handler, which goes up a zoom level, sees it.
+// children(close): the panel's contents; close() also hands focus back to the button.
+function MoreMenu({ id, children }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const btnRef = useRef(null);
+  const close = useCallback(() => {
+    setOpen(false);
+    const wrap = wrapRef.current;
+    if (wrap?.contains(document.activeElement) && wrap.getClientRects().length) btnRef.current?.focus();
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (!wrapRef.current?.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      // Hidden (the window grew past sm): just close, and leave Esc to the page.
+      if (wrapRef.current?.getClientRects().length) e.preventDefault();
+      close();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [open, close]);
+  return (
+    <div
+      ref={wrapRef}
+      className="relative ml-auto sm:hidden"
+      onBlur={(e) => {
+        if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+      }}
+    >
+      <button
+        ref={btnRef}
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        className={`${BTN} ${BTN_PHONE} ${open ? "bg-[color:var(--sap-hover)]" : ""}`}
+      >
+        More <span aria-hidden="true">{open ? "▴" : "▾"}</span>
+      </button>
+      <div
+        id={id}
+        hidden={!open}
+        className="absolute right-0 top-full z-20 mt-1 border border-[color:var(--sap-frame)] bg-[color:var(--sap-bg)] p-2 shadow-lg"
+      >
+        {children(close)}
+      </div>
+    </div>
+  );
+}
 
 // What each RAM word means to the program in memory. SAP-1 has no jumps, so a run goes from 0H to
 // the first HLT; the words its LDA/ADD/SUB instructions point at past that are data, and the
@@ -526,7 +590,7 @@ const BIT_ON = {
 function BitButton({ caption, label, type, on, onClick, className = "" }) {
   return (
     <span className={`flex flex-col items-center gap-0.5 ${className}`}>
-      <span aria-hidden="true" className="font-sap-mono text-[10px] text-[color:var(--sap-muted)]">
+      <span aria-hidden="true" className="font-sap-mono text-[10px] text-[color:var(--sap-muted)] max-sm:text-[9px]">
         {caption}
       </span>
       <button
@@ -534,7 +598,7 @@ function BitButton({ caption, label, type, on, onClick, className = "" }) {
         aria-label={label}
         aria-pressed={on}
         onClick={onClick}
-        className={`h-7 w-7 border font-sap-mono text-sm ${
+        className={`h-7 w-7 border font-sap-mono text-sm max-sm:h-6 max-sm:w-6 max-sm:text-xs ${
           on ? BIT_ON[type] : "border-[color:var(--sap-ink)] hover:bg-[color:var(--sap-hover)]"
         }`}
       >
@@ -550,9 +614,11 @@ function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite, below = false }) {
   const addr = sim.addrSw & 15;
   const word = decodeWord(sim.dataSw);
   return (
-    <div className={`border ${below ? "border-t-0" : "border-b-0"} border-[color:var(--sap-frame)] px-3 py-2`}>
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
-        <div role="group" aria-label="Address switches" className="flex gap-1">
+    <div
+      className={`border ${below ? "border-t-0" : "border-b-0"} border-[color:var(--sap-frame)] px-3 py-2 max-sm:px-2 max-sm:py-1.5`}
+    >
+      <div className="flex flex-wrap items-end gap-x-5 gap-y-2 max-sm:gap-x-2 max-sm:gap-y-1.5">
+        <div role="group" aria-label="Address switches" className="flex gap-1 max-sm:gap-0.5">
           {[3, 2, 1, 0].map((i) => (
             <BitButton
               key={i}
@@ -564,7 +630,7 @@ function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite, below = false }) {
             />
           ))}
         </div>
-        <div role="group" aria-label="Data switches" className="flex gap-1">
+        <div role="group" aria-label="Data switches" className="flex gap-1 max-sm:gap-0.5">
           {[7, 6, 5, 4, 3, 2, 1, 0].map((i) => (
             <BitButton
               key={i}
@@ -573,15 +639,15 @@ function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite, below = false }) {
               type="data"
               on={Boolean((sim.dataSw >> i) & 1)}
               onClick={() => onDataBit(i)}
-              className={i === 3 ? "ml-2" : ""}
+              className={i === 3 ? "ml-2 max-sm:ml-1" : ""}
             />
           ))}
         </div>
-        <button type="button" className={BTN} onClick={onWrite}>
+        <button type="button" className={`${BTN} ${BTN_PHONE}`} onClick={onWrite}>
           Write
         </button>
       </div>
-      <p className="mt-2 flex flex-wrap gap-x-4 font-sap-mono text-[13px]">
+      <p className="mt-2 flex flex-wrap gap-x-4 font-sap-mono text-[13px] max-sm:mt-1 max-sm:gap-x-3 max-sm:text-[11px]">
         <span>
           Address <span className="font-bold">{hex(addr, 1)}H</span>
         </span>
@@ -598,7 +664,7 @@ function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite, below = false }) {
           )}
         </span>
       </p>
-      <p className="mt-1 text-xs text-[color:var(--sap-muted)]" aria-live="polite">
+      <p className="mt-1 text-xs text-[color:var(--sap-muted)] max-sm:text-[11px]" aria-live="polite">
         Set an address and a byte, then Write. Word {hex(addr, 1)}H holds {bin(sim.ram[addr])} now.
       </p>
     </div>
@@ -665,6 +731,8 @@ export default function Sap1Visualizer() {
   const sceneRef = useRef(null);
   const frameRef = useRef(null);
   const pathRef = useRef([]);
+  // Where the zoom in flight is heading (pathRef changes over at its midpoint).
+  const targetRef = useRef([]);
   const animToken = useRef(0);
   const busy = useRef(false);
   const modeRef = useRef(mode);
@@ -702,18 +770,16 @@ export default function Sap1Visualizer() {
     const ae = document.activeElement;
     if (!ae || ae === document.body || !ae.isConnected) svgRef.current?.focus({ preventScroll: true });
     pathRef.current = next;
-    if (push) {
-      const url = next.length ? `#/${next.join("/")}` : window.location.pathname + window.location.search;
-      window.history.pushState(null, "", url);
-    }
+    if (push) window.history.pushState(null, "", urlFor(next));
   };
 
   // Zoom into a block (or back out of one), swapping the diagram at the midpoint.
   const navigate = useCallback(async (next, { push = true, force = false } = {}) => {
     const cur = pathRef.current;
-    if (next.join("/") === cur.join("/")) return;
     if (busy.current && !force) return;
+    // A zoom still in flight stops at its next frame.
     const token = ++animToken.current;
+    targetRef.current = next;
     const alive = () => animToken.current === token;
     // Each level is drawn on its own canvas (the upright overview's is tall).
     const canvas = (p) => canvasAt(modeRef.current, p, narrowRef.current);
@@ -722,6 +788,14 @@ export default function Sap1Visualizer() {
       setView(fullBox(canvas(pathRef.current)), 1);
       busy.current = false;
     };
+    if (next.join("/") === cur.join("/")) {
+      // A zoom in cancelled before its midpoint: settle back on this level (and, if the zoom
+      // came from the back or forward button, which already moved the URL, put the URL back).
+      if (!busy.current) return;
+      done();
+      if (pathFromHash().join("/") !== cur.join("/")) window.history.replaceState(null, "", urlFor(cur));
+      return;
+    }
 
     const into = next.length === cur.length + 1 && cur.every((id, i) => next[i] === id);
     const outOf = next.length < cur.length && next.every((id, i) => cur[i] === id);
@@ -760,7 +834,12 @@ export default function Sap1Visualizer() {
     }
     const onPop = () => navigate(pathFromHash(), { push: false, force: true });
     const onKey = (e) => {
-      if (e.key === "Escape" && pathRef.current.length) navigate(pathRef.current.slice(0, -1));
+      // An open menu takes Esc first (it prevents the default).
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      // Mid-zoom, go up from where the zoom is heading: that cancels a zoom in, and a second Esc
+      // while zooming out goes up one more level.
+      const at = busy.current ? targetRef.current : pathRef.current;
+      if (at.length) navigate(at.slice(0, -1), { force: true });
     };
     window.addEventListener("popstate", onPop);
     window.addEventListener("keydown", onKey);
@@ -868,6 +947,34 @@ export default function Sap1Visualizer() {
     if (on) setRunning(false);
     setSim((s) => setProg(s, on));
   };
+  const loadEx = () => {
+    setRunning(false);
+    setSim((s) => clear(loadExample(s)));
+  };
+  // The RUN / PROG switch, in the toolbar or (on a phone) its More menu. then(): after a choice.
+  const progToggle = (className, then) => (
+    <div role="group" aria-label="RUN / PROG switch" className={`flex ${className}`}>
+      {[
+        ["RUN", false],
+        ["PROG", true],
+      ].map(([label, on], i) => (
+        <button
+          key={label}
+          type="button"
+          aria-pressed={sim.prog === on}
+          onClick={() => {
+            setProgSwitch(on);
+            then?.();
+          }}
+          className={`border border-[color:var(--sap-ink)] px-2.5 py-1 font-sap-mono text-[13px] ${i ? "-ml-px" : ""} ${
+            sim.prog === on ? "bg-[color:var(--sap-ink)] text-[color:var(--sap-bg)]" : "hover:bg-[color:var(--sap-hover)]"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <PaletteContext.Provider value={pal}>
@@ -939,33 +1046,19 @@ export default function Sap1Visualizer() {
 
           <div className="mt-3 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-b-0 border-[color:var(--sap-frame)] px-3 py-2">
-                <div role="group" aria-label="RUN / PROG switch" className="flex">
-                  {[
-                    ["RUN", false],
-                    ["PROG", true],
-                  ].map(([label, on], i) => (
-                    <button
-                      key={label}
-                      type="button"
-                      aria-pressed={sim.prog === on}
-                      onClick={() => setProgSwitch(on)}
-                      className={`border border-[color:var(--sap-ink)] px-2.5 py-1 font-sap-mono text-[13px] ${
-                        i ? "-ml-px" : ""
-                      } ${
-                        sim.prog === on
-                          ? "bg-[color:var(--sap-ink)] text-[color:var(--sap-bg)]"
-                          : "hover:bg-[color:var(--sap-hover)]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
+              {/* On phones (below sm) it packs into one row of buttons, with RUN/PROG and Load
+                  example in a More menu, and one status line. The front panel has every one of
+                  those buttons, so over it a phone shows just the status line. */}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-b-0 border-[color:var(--sap-frame)] px-3 py-2 max-sm:gap-y-1.5 max-sm:px-2 max-sm:py-1.5">
+                {progToggle("max-sm:hidden")}
+                <div
+                  className={`flex flex-wrap gap-1.5 max-sm:w-full max-sm:flex-nowrap max-sm:gap-1 ${
+                    showPanel ? "max-sm:hidden" : ""
+                  }`}
+                >
                   <button
                     type="button"
-                    className={btn}
+                    className={`${btn} ${BTN_PHONE}`}
                     onClick={() => {
                       setRunning(false);
                       setSim((s) => clear(s));
@@ -975,7 +1068,7 @@ export default function Sap1Visualizer() {
                   </button>
                   <button
                     type="button"
-                    className={btn}
+                    className={`${btn} ${BTN_PHONE}`}
                     disabled={clockStopped || running}
                     onClick={() => setSim((s) => step(s))}
                   >
@@ -983,20 +1076,21 @@ export default function Sap1Visualizer() {
                   </button>
                   <button
                     type="button"
-                    className={`${btn} w-[4.5rem]`}
+                    className={`${btn} w-[4.5rem] ${BTN_PHONE} max-sm:w-[3.25rem]`}
                     disabled={clockStopped}
                     onClick={() => setRunning((r) => !r)}
                   >
                     {running ? "Pause" : "Run"}
                   </button>
                   <div role="group" aria-label="Clock rate" className="flex">
-                    {RATE_LABELS.map(([r, label], i) => (
+                    {RATE_LABELS.map(([r, label, short], i) => (
                       <button
                         key={r}
                         type="button"
+                        aria-label={label}
                         aria-pressed={rate === r}
                         onClick={() => setRate(r)}
-                        className={`border border-[color:var(--sap-ink)] px-2 py-1 font-sap-mono text-[12px] ${
+                        className={`border border-[color:var(--sap-ink)] px-2 py-1 font-sap-mono text-[12px] max-sm:min-w-6 max-sm:px-1.5 max-sm:py-0.5 ${
                           i ? "-ml-px" : ""
                         } ${
                           rate === r
@@ -1004,42 +1098,58 @@ export default function Sap1Visualizer() {
                             : "hover:bg-[color:var(--sap-hover)]"
                         }`}
                       >
-                        {label}
+                        <span className="max-sm:hidden">{label}</span>
+                        <span aria-hidden="true" className="sm:hidden">
+                          {short}
+                        </span>
                       </button>
                     ))}
                   </div>
-                  <button
-                    type="button"
-                    className={btn}
-                    onClick={() => {
-                      setRunning(false);
-                      setSim((s) => clear(loadExample(s)));
-                    }}
-                  >
+                  <button type="button" className={`${btn} max-sm:hidden`} onClick={loadEx}>
                     Load example
                   </button>
+                  <MoreMenu id="sap1-more">
+                    {(close) => (
+                      <div className="flex flex-col items-start gap-2">
+                        {progToggle("", close)}
+                        <button
+                          type="button"
+                          className={`${btn} ${BTN_PHONE}`}
+                          onClick={() => {
+                            loadEx();
+                            close();
+                          }}
+                        >
+                          Load example
+                        </button>
+                      </div>
+                    )}
+                  </MoreMenu>
                 </div>
-                <div className="flex gap-1 font-sap-mono text-[13px]" aria-label="T state">
-                  {[1, 2, 3, 4, 5, 6].map((t) => (
-                    <span
-                      key={t}
-                      className={`px-1.5 py-0.5 ${
-                        !sim.halted && sim.t === t
-                          ? "bg-[color:var(--sap-type-status)] text-[color:var(--sap-on-accent)]"
-                          : t <= 3
-                            ? "text-[color:var(--sap-muted)]"
-                            : "text-[color:var(--sap-faint)]"
-                      }`}
-                    >
-                      T{t}
-                    </span>
-                  ))}
-                </div>
-                <div className="font-sap-mono text-[13px]">
-                  CON <span className="font-bold">{hex(d.con, 3)}H</span>
-                </div>
-                <div className="font-sap-mono text-[13px]">
-                  OUT <span className="font-bold">{bin(sim.out)}</span> = {sim.out}
+                {/* The status readouts; on a phone, one small line. */}
+                <div className="contents max-sm:flex max-sm:w-full max-sm:flex-wrap max-sm:items-center max-sm:justify-between max-sm:gap-x-2">
+                  <div className="flex gap-1 font-sap-mono text-[13px] max-sm:gap-0.5 max-sm:text-[11px]" aria-label="T state">
+                    {[1, 2, 3, 4, 5, 6].map((t) => (
+                      <span
+                        key={t}
+                        className={`px-1.5 py-0.5 max-sm:px-[3px] max-sm:py-0 ${
+                          !sim.halted && sim.t === t
+                            ? "bg-[color:var(--sap-type-status)] text-[color:var(--sap-on-accent)]"
+                            : t <= 3
+                              ? "text-[color:var(--sap-muted)]"
+                              : "text-[color:var(--sap-faint)]"
+                        }`}
+                      >
+                        T{t}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="font-sap-mono text-[13px] max-sm:text-[11px]">
+                    CON <span className="font-bold">{hex(d.con, 3)}H</span>
+                  </div>
+                  <div className="font-sap-mono text-[13px] max-sm:text-[11px]">
+                    OUT <span className="font-bold">{bin(sim.out)}</span> = {sim.out}
+                  </div>
                 </div>
               </div>
 
