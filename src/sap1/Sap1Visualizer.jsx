@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { CANVAS, ROOT, ROOT_TALL, nodeAt, cleanPath, decodeWord } from "./sap1Parts";
 import {
@@ -17,36 +17,25 @@ import {
   toggleDataBit,
   write,
 } from "./sap1Sim";
-import { PALETTES, TEXTBOOK, cssVars } from "./theme";
+import { TEXTBOOK as P, cssVars } from "./theme";
 import { signalType } from "./signalTypes";
 import { HtmlText, SvgText } from "./sigText";
-import GamePanel, { PANEL_BOXES } from "./GamePanel";
-import GameDiagram, { Pulse, bitsMarker, mix, trimEnd } from "./gameParts";
-import { TourDock, TourInvite, TourPanel, useTour } from "./Tour";
+import { PULSE_CSS, Pulse, bitsMarker, mix, trimEnd } from "./drawing";
 
-// The active color palette (see theme.js). SVG parts read it directly; HTML parts use the
+// The color palette is P (theme.js TEXTBOOK). SVG parts read it directly; HTML parts use the
 // matching CSS variables (--sap-*) set on the page root. An active part is drawn in the color of
-// its signal type (pal.type[signalType(...)]); in the textbook look every type is the same red.
-const PaletteContext = createContext(TEXTBOOK);
-const usePalette = () => useContext(PaletteContext);
+// its signal type (P.type[signalType(...)]), which is the same red for every type.
 
-// The free-running clock's period for each rate setting (the toolbar's and the panel's CLOCK switch).
-export const STEP_MS = { slow: 1200, med: 550, fast: 150 };
+// The free-running clock's period for each rate setting (the toolbar's speed buttons).
+const STEP_MS = { slow: 1200, med: 550, fast: 150 };
 // [rate, label, the short label a phone shows]
 const RATE_LABELS = [
   ["slow", "Slow", "›"],
   ["med", "Med", "››"],
   ["fast", "Fast", "›››"],
 ];
-const MODE_KEY = "sap1-mode"; // localStorage: "game" | "textbook"
 
-// The textbook wires' pulse: a thin pale dash running along each lit wire, the same keyframes as
-// game mode's gm-pulse (see Pulse in gameParts.jsx). Off under reduced motion.
-const TB_CSS = `
-.tb-pulse { animation-name: tb-pulse; animation-timing-function: linear; animation-iteration-count: infinite; }
-@keyframes tb-pulse { to { stroke-dashoffset: -100; } }
-@media (prefers-reduced-motion: reduce) { .tb-pulse { display: none; } }`;
-const TB_ARROW_TRIM = 8; // the pulse stops where a wire's arrowhead begins
+const ARROW_TRIM = 8; // a lit wire's pulse stops where its arrowhead begins
 
 // --- geometry & animation helpers -----------------------------------------------------------
 
@@ -90,30 +79,25 @@ function tween(ms, alive, frame) {
   });
 }
 
-// A frame narrower than this (px) draws the textbook overview upright (ROOT_TALL in sap1Parts.js).
+// A frame narrower than this (px) draws the overview upright (ROOT_TALL in sap1Parts.js).
 const TALL_BELOW = 600;
-const isTall = (mode, p, narrow) => narrow && mode === "textbook" && p.length === 0;
+const isTall = (p, narrow) => narrow && p.length === 0;
 // The diagram drawn on level `p`, and the canvas it is drawn on.
-const diagramAt = (mode, p, narrow) => (isTall(mode, p, narrow) ? ROOT_TALL : nodeAt(p)?.diagram);
-const canvasAt = (mode, p, narrow) => (isTall(mode, p, narrow) ? ROOT_TALL.canvas : CANVAS);
+const diagramAt = (p, narrow) => (isTall(p, narrow) ? ROOT_TALL : nodeAt(p)?.diagram);
+const canvasAt = (p, narrow) => (isTall(p, narrow) ? ROOT_TALL.canvas : CANVAS);
 
-// The box part `id` is drawn in on level `p`: its section on the game front panel (the overview in
-// game mode), otherwise its block in the diagram.
-const partBox = (mode, p, id, narrow) =>
-  mode === "game" && p.length === 0 ? PANEL_BOXES[id] : diagramAt(mode, p, narrow)?.blocks.find((b) => b.id === id);
+// The block part `id` is drawn as on level `p`.
+const partBox = (p, id, narrow) => diagramAt(p, narrow)?.blocks.find((b) => b.id === id);
 
 const pathFromHash = () =>
   cleanPath(window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean));
 const urlFor = (p) => (p.length ? `#/${p.join("/")}` : window.location.pathname + window.location.search);
 
 // --- diagram pieces -------------------------------------------------------------------------
-// The textbook drawing. Game mode draws the levels below the front panel as hardware instead
-// (gameParts.jsx), from the same data.
 
 // A connection; while lit, a pulse runs along it from driver (first point) to loader (last point)
 // once per clock period stepMs. Font sizes go through f, the diagram's minimum (see Diagram).
 function Wire({ w, d, stepMs, f }) {
-  const P = usePalette();
   const on = Boolean(w.on && d.sig.has(w.on));
   const type = signalType(w);
   const color = on ? P.type[type] : P.ink;
@@ -131,8 +115,7 @@ function Wire({ w, d, stepMs, f }) {
       />
       {on && stepMs > 0 && (
         <Pulse
-          className="tb-pulse"
-          pts={arrow ? trimEnd(w.pts, TB_ARROW_TRIM) : w.pts}
+          pts={arrow ? trimEnd(w.pts, ARROW_TRIM) : w.pts}
           stroke={mix(color, "#ffffff", 0.6)}
           width={1.2}
           stepMs={stepMs}
@@ -170,7 +153,6 @@ function Wire({ w, d, stepMs, f }) {
 }
 
 function Pin({ p, d, f }) {
-  const P = usePalette();
   const on = CON_ORDER.includes(p.sig) && d.sig.has(p.sig);
   const color = on ? P.type[signalType(p)] : P.ink;
   const len = p.len ?? 30;
@@ -191,7 +173,6 @@ function Pin({ p, d, f }) {
 }
 
 function Group({ g, sim, d, path, f }) {
-  const P = usePalette();
   const active = g.act?.some((k) => d.sig.has(k));
   const hot = P.type[signalType(g, { d, path })];
   const value = g.value?.(sim, d);
@@ -222,7 +203,6 @@ function Group({ g, sim, d, path, f }) {
 
 // Eight LEDs across a block w wide: 22 apart, or closer in a narrow block.
 function Leds({ cx, cy, value, w }) {
-  const P = usePalette();
   const step = Math.min(22, (w - 20) / 8);
   return Array.from({ length: 8 }, (_, i) => {
     const lit = (value >> (7 - i)) & 1;
@@ -242,7 +222,6 @@ function Leds({ cx, cy, value, w }) {
 
 // The control word, in b.rows rows (one by default).
 function ConRow({ b, d, f }) {
-  const P = usePalette();
   const rows = b.rows ?? 1;
   const per = Math.ceil(CON_ORDER.length / rows);
   const [cw, ch] = [b.w / per, b.h / rows];
@@ -280,7 +259,6 @@ function ConRow({ b, d, f }) {
 }
 
 function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate, f }) {
-  const P = usePalette();
   const active = b.kind === "bus" ? d.bus !== null : Boolean(b.act?.some((k) => d.sig.has(k)));
   const type = signalType(b, { d, path });
   const [hot, tint] = [P.type[type], P.tint[type]];
@@ -407,7 +385,6 @@ function Block({ b, sim, d, path, drill, focused, onEnter, onLeave, onActivate, 
 
 // Draws diagram dg of level `node` (node.diagram, or the upright overview on a phone).
 function Diagram({ node, dg = node.diagram, path, sim, d, focusId, onEnter, onLeave, onActivate, stepMs }) {
-  const P = usePalette();
   // Font sizes, raised to the diagram's minimum where it sets one.
   const f = (size) => Math.max(size, dg.minFont ?? 0);
   return (
@@ -586,7 +563,7 @@ const BIT_ON = {
   data: "border-[color:var(--sap-type-data)] bg-[color:var(--sap-type-data)] text-[color:var(--sap-on-accent)]",
 };
 
-// One front-panel bit switch: shows 0 or 1, lit when 1.
+// One bit switch: shows 0 or 1, lit when 1.
 function BitButton({ caption, label, type, on, onClick, className = "" }) {
   return (
     <span className={`flex flex-col items-center gap-0.5 ${className}`}>
@@ -608,14 +585,13 @@ function BitButton({ caption, label, type, on, onClick, className = "" }) {
   );
 }
 
-// PROG mode: the address switches (S1), data switches (S3) and Write (S4). below: it sits under
-// the diagram instead of above it.
-function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite, below = false }) {
+// PROG mode: the address switches (S1), data switches (S3) and Write (S4), above the diagram.
+function ProgSwitches({ sim, onAddrBit, onDataBit, onWrite }) {
   const addr = sim.addrSw & 15;
   const word = decodeWord(sim.dataSw);
   return (
     <div
-      className={`border ${below ? "border-t-0" : "border-b-0"} border-[color:var(--sap-frame)] px-3 py-2 max-sm:px-2 max-sm:py-1.5`}
+      className="border border-b-0 border-[color:var(--sap-frame)] px-3 py-2 max-sm:px-2 max-sm:py-1.5"
     >
       <div className="flex flex-wrap items-end gap-x-5 gap-y-2 max-sm:gap-x-2 max-sm:gap-y-1.5">
         <div role="group" aria-label="Address switches" className="flex gap-1 max-sm:gap-0.5">
@@ -712,10 +688,6 @@ function Panel({ node, path, focus, drill, sim, d, onOpen }) {
 // --- main -----------------------------------------------------------------------------------
 
 export default function Sap1Visualizer() {
-  // "game" (the default) or "textbook". The server and the first client render use the default;
-  // a saved choice is read after hydration.
-  const [mode, setMode] = useState("game");
-  const pal = PALETTES[mode];
   const [path, setPath] = useState([]);
   const [sim, setSim] = useState(initialState);
   const [running, setRunning] = useState(false);
@@ -735,8 +707,6 @@ export default function Sap1Visualizer() {
   const targetRef = useRef([]);
   const animToken = useRef(0);
   const busy = useRef(false);
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
   const narrowRef = useRef(narrow);
   narrowRef.current = narrow;
 
@@ -752,7 +722,6 @@ export default function Sap1Visualizer() {
 
   const node = nodeAt(path) ?? ROOT;
   const d = useMemo(() => derive(sim), [sim]);
-  const tour = useTour(sim, d);
 
   const setView = (box, opacity) => {
     svgRef.current?.setAttribute("viewBox", box.join(" "));
@@ -782,8 +751,8 @@ export default function Sap1Visualizer() {
     targetRef.current = next;
     const alive = () => animToken.current === token;
     // Each level is drawn on its own canvas (the upright overview's is tall).
-    const canvas = (p) => canvasAt(modeRef.current, p, narrowRef.current);
-    const box = (p, id) => partBox(modeRef.current, p, id, narrowRef.current);
+    const canvas = (p) => canvasAt(p, narrowRef.current);
+    const box = (p, id) => partBox(p, id, narrowRef.current);
     const done = () => {
       setView(fullBox(canvas(pathRef.current)), 1);
       busy.current = false;
@@ -850,41 +819,7 @@ export default function Sap1Visualizer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(MODE_KEY);
-      if (saved === "game" || saved === "textbook") setMode(saved);
-    } catch {
-      // storage blocked: keep the default
-    }
-  }, []);
-  const chooseMode = (m) => {
-    // The other mode draws different parts, so a hover or selection from this one would linger
-    // in the info panel (the hovered part unmounts without a pointer-leave).
-    if (m !== modeRef.current) {
-      setHoverId(null);
-      setSelectedId(null);
-    }
-    setMode(m);
-    try {
-      window.localStorage.setItem(MODE_KEY, m);
-    } catch {
-      // storage blocked: the choice lasts until the page is left
-    }
-  };
-
-  // The guided tour runs on the Game-mode front panel.
-  const backToPanel = () => {
-    chooseMode("game");
-    navigate([], { force: true });
-  };
-  const startTour = (opts) => {
-    backToPanel();
-    tour.start(opts);
-  };
-
-  // The one free-running clock: the toolbar's Run / Pause and the panel's AUTO lever both drive
-  // `running`, and both rate controls drive `rate`.
+  // The free-running clock: the toolbar's Run / Pause drives `running`, its speed buttons `rate`.
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => setSim((s) => step(s)), stepMs);
@@ -893,17 +828,6 @@ export default function Sap1Visualizer() {
   useEffect(() => {
     if (sim.halted || sim.prog) setRunning(false);
   }, [sim.halted, sim.prog]);
-
-  // Paint the whole page (overscroll included) in the palette while this route is open.
-  useEffect(() => {
-    const s = document.documentElement.style;
-    const prev = [s.backgroundColor, s.colorScheme];
-    s.backgroundColor = pal.bg;
-    s.colorScheme = pal.scheme;
-    return () => {
-      [s.backgroundColor, s.colorScheme] = prev;
-    };
-  }, [pal]);
 
   const onEnter = useCallback((id) => setHoverId(id), []);
   const onLeave = useCallback((id) => setHoverId((h) => (h === id ? null : h)), []);
@@ -915,23 +839,11 @@ export default function Sap1Visualizer() {
     [navigate]
   );
 
-  const openPart = useCallback((id) => navigate([...pathRef.current, id]), [navigate]);
-  // Game mode shows the overview as a front panel and the levels below as chips on a board.
-  const showPanel = mode === "game" && path.length === 0;
-  const progSwitches = (
-    <ProgSwitches
-      sim={sim}
-      below={showPanel}
-      onAddrBit={(i) => setSim((s) => toggleAddrBit(s, i))}
-      onDataBit={(i) => setSim((s) => toggleDataBit(s, i))}
-      onWrite={() => setSim((s) => write(s))}
-    />
-  );
 
-  // The diagram on view: the upright overview on a phone in textbook mode, else node.diagram.
-  const tall = isTall(mode, path, narrow);
-  const dg = diagramAt(mode, path, narrow) ?? node.diagram;
-  const full = fullBox(canvasAt(mode, path, narrow));
+  // The diagram on view: the upright overview on a phone, else node.diagram.
+  const tall = isTall(path, narrow);
+  const dg = diagramAt(path, narrow) ?? node.diagram;
+  const full = fullBox(canvasAt(path, narrow));
 
   const focusId = hoverId ?? selectedId;
   const focus = dg.blocks.find((b) => b.id === focusId);
@@ -977,331 +889,226 @@ export default function Sap1Visualizer() {
   );
 
   return (
-    <PaletteContext.Provider value={pal}>
-      <div
-        className="min-h-screen bg-[color:var(--sap-bg)] font-sap-body text-[color:var(--sap-ink)]"
-        // No faux bold: Michroma has a single weight, and bold labels set in it stay regular.
-        style={{ ...cssVars(pal), colorScheme: pal.scheme, fontSynthesisWeight: "none" }}
-      >
-        <main className="mx-auto max-w-6xl px-4 py-10">
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-            <h1 className="font-sap-label text-4xl font-bold">sap-1</h1>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                aria-pressed={tour.open}
-                onClick={() => startTour()}
-                title="A guided tour of the front panel"
-                className={`border border-[color:var(--sap-led-amber-on)] px-3 py-1 text-sm ${
-                  tour.open
-                    ? "bg-[color:var(--sap-led-amber-on)] text-[color:var(--sap-on-accent)]"
-                    : "text-[color:var(--sap-led-amber-on)] hover:bg-[color:var(--sap-hover)]"
-                }`}
-              >
-                Tour
-              </button>
-              <div role="group" aria-label="View mode" className="flex">
-                {[
-                  ["game", "Game"],
-                  ["textbook", "Textbook"],
-                ].map(([m, label], i) => (
-                  <button
-                    key={m}
-                    type="button"
-                    aria-pressed={mode === m}
-                    onClick={() => chooseMode(m)}
-                    className={`border border-[color:var(--sap-ink)] px-3 py-1 text-sm ${i ? "-ml-px" : ""} ${
-                      mode === m ? "bg-[color:var(--sap-ink)] text-[color:var(--sap-bg)]" : "hover:bg-[color:var(--sap-hover)]"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <p className="mt-2 max-w-2xl text-[color:var(--sap-soft)]">
-            The Simple-As-Possible computer from Malvino &amp; Brown&apos;s <i>Digital Computer Electronics</i>, chapter 10.
-            Click a part marked + to look inside it, and step the clock to watch the example program run. Switch to
-            PROG to write your own program into memory.
-          </p>
+    <div
+      className="min-h-screen bg-[color:var(--sap-bg)] font-sap-body text-[color:var(--sap-ink)]"
+      // No faux bold: a weight that isn't loaded (main.jsx) stays as the nearest loaded one.
+      style={{ ...cssVars(P), colorScheme: P.scheme, fontSynthesisWeight: "none" }}
+    >
+      <main className="mx-auto max-w-6xl px-4 py-10">
+        <h1 className="font-sap-label text-4xl font-bold">sap-1</h1>
+        <p className="mt-2 max-w-2xl text-[color:var(--sap-soft)]">
+          The Simple-As-Possible computer from Malvino &amp; Brown&apos;s <i>Digital Computer Electronics</i>, chapter 10.
+          Click a part marked + to look inside it, and step the clock to watch the example program run. Switch to
+          PROG to write your own program into memory.
+        </p>
 
-          <nav aria-label="Breadcrumb" className="mt-6 flex flex-wrap items-center gap-x-2 text-sm">
-            {crumbs.map((c, i) => (
-              <span key={c.path.join("/") || "root"} className="flex items-center gap-x-2">
-                {i > 0 && <span className="text-[color:var(--sap-faint)]">/</span>}
-                {i === crumbs.length - 1 ? (
-                  <span className="font-bold">{c.title}</span>
-                ) : (
-                  <button
-                    onClick={() => navigate(c.path)}
-                    className="text-[color:var(--sap-soft)] underline-offset-2 hover:underline"
-                  >
-                    {c.title}
-                  </button>
-                )}
-              </span>
-            ))}
-          </nav>
-
-          <div className="mt-3 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0">
-              {/* On phones (below sm) it packs into one row of buttons, with RUN/PROG and Load
-                  example in a More menu, and one status line. The front panel has every one of
-                  those buttons, so over it a phone shows just the status line. */}
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-b-0 border-[color:var(--sap-frame)] px-3 py-2 max-sm:gap-y-1.5 max-sm:px-2 max-sm:py-1.5">
-                {progToggle("max-sm:hidden")}
-                <div
-                  className={`flex flex-wrap gap-1.5 max-sm:w-full max-sm:flex-nowrap max-sm:gap-1 ${
-                    showPanel ? "max-sm:hidden" : ""
-                  }`}
-                >
-                  <button
-                    type="button"
-                    className={`${btn} ${BTN_PHONE}`}
-                    onClick={() => {
-                      setRunning(false);
-                      setSim((s) => clear(s));
-                    }}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    className={`${btn} ${BTN_PHONE}`}
-                    disabled={clockStopped || running}
-                    onClick={() => setSim((s) => step(s))}
-                  >
-                    Step
-                  </button>
-                  <button
-                    type="button"
-                    className={`${btn} w-[4.5rem] ${BTN_PHONE} max-sm:w-[3.25rem]`}
-                    disabled={clockStopped}
-                    onClick={() => setRunning((r) => !r)}
-                  >
-                    {running ? "Pause" : "Run"}
-                  </button>
-                  <div role="group" aria-label="Clock rate" className="flex">
-                    {RATE_LABELS.map(([r, label, short], i) => (
-                      <button
-                        key={r}
-                        type="button"
-                        aria-label={label}
-                        aria-pressed={rate === r}
-                        onClick={() => setRate(r)}
-                        className={`border border-[color:var(--sap-ink)] px-2 py-1 font-sap-mono text-[12px] max-sm:min-w-6 max-sm:px-1.5 max-sm:py-0.5 ${
-                          i ? "-ml-px" : ""
-                        } ${
-                          rate === r
-                            ? "bg-[color:var(--sap-ink)] text-[color:var(--sap-bg)]"
-                            : "hover:bg-[color:var(--sap-hover)]"
-                        }`}
-                      >
-                        <span className="max-sm:hidden">{label}</span>
-                        <span aria-hidden="true" className="sm:hidden">
-                          {short}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <button type="button" className={`${btn} max-sm:hidden`} onClick={loadEx}>
-                    Load example
-                  </button>
-                  <MoreMenu id="sap1-more">
-                    {(close) => (
-                      <div className="flex flex-col items-start gap-2">
-                        {progToggle("", close)}
-                        <button
-                          type="button"
-                          className={`${btn} ${BTN_PHONE}`}
-                          onClick={() => {
-                            loadEx();
-                            close();
-                          }}
-                        >
-                          Load example
-                        </button>
-                      </div>
-                    )}
-                  </MoreMenu>
-                </div>
-                {/* The status readouts; on a phone, one small line. */}
-                <div className="contents max-sm:flex max-sm:w-full max-sm:flex-wrap max-sm:items-center max-sm:justify-between max-sm:gap-x-2">
-                  <div className="flex gap-1 font-sap-mono text-[13px] max-sm:gap-0.5 max-sm:text-[11px]" aria-label="T state">
-                    {[1, 2, 3, 4, 5, 6].map((t) => (
-                      <span
-                        key={t}
-                        className={`px-1.5 py-0.5 max-sm:px-[3px] max-sm:py-0 ${
-                          !sim.halted && sim.t === t
-                            ? "bg-[color:var(--sap-type-status)] text-[color:var(--sap-on-accent)]"
-                            : t <= 3
-                              ? "text-[color:var(--sap-muted)]"
-                              : "text-[color:var(--sap-faint)]"
-                        }`}
-                      >
-                        T{t}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="font-sap-mono text-[13px] max-sm:text-[11px]">
-                    CON <span className="font-bold">{hex(d.con, 3)}H</span>
-                  </div>
-                  <div className="font-sap-mono text-[13px] max-sm:text-[11px]">
-                    OUT <span className="font-bold">{bin(sim.out)}</span> = {sim.out}
-                  </div>
-                </div>
-              </div>
-
-              {/* On the front panel it goes below, so flipping S2 doesn't push the panel's
-                  switches out from under the pointer. */}
-              {sim.prog && !showPanel && progSwitches}
-
-              {/* Below 680px wide the frame scrolls sideways, except for the upright overview,
-                  which fits a phone. */}
-              <div ref={frameRef} className="overflow-x-auto border border-[color:var(--sap-frame)]">
-                <svg
-                  ref={svgRef}
-                  viewBox={full.join(" ")}
-                  className={`block h-auto w-full ${
-                    tall ? "" : "min-w-[680px]"
-                  } touch-manipulation select-none outline-none`}
-                  tabIndex={-1}
-                  role="group"
-                  aria-label={showPanel ? "SAP-1 front panel" : `${node.title} diagram`}
-                >
-                  <defs>
-                    <style>{TB_CSS}</style>
-                    {[["off", pal.ink], ...Object.entries(pal.type)].map(([id, color]) => (
-                      <marker
-                        key={id}
-                        id={`sap1-arrow-${id}`}
-                        viewBox="0 0 10 10"
-                        refX={9}
-                        refY={5}
-                        markerWidth={9}
-                        markerHeight={9}
-                        markerUnits="userSpaceOnUse"
-                        orient="auto-start-reverse"
-                      >
-                        <path d="M0,1 L10,5 L0,9 z" fill={color} />
-                      </marker>
-                    ))}
-                  </defs>
-                  <g ref={sceneRef}>
-                    {showPanel ? (
-                      <GamePanel
-                        sim={sim}
-                        d={d}
-                        setSim={setSim}
-                        running={running}
-                        setRunning={setRunning}
-                        rate={rate}
-                        setRate={setRate}
-                        stepMs={stepMs}
-                        onOpen={openPart}
-                        focusId={focusId}
-                        onEnter={onEnter}
-                        onLeave={onLeave}
-                        onActivate={onActivate}
-                        highlight={tour.highlight}
-                      />
-                    ) : mode === "game" ? (
-                      <GameDiagram
-                        node={node}
-                        path={path}
-                        sim={sim}
-                        d={d}
-                        focusId={focusId}
-                        onEnter={onEnter}
-                        onLeave={onLeave}
-                        onActivate={onActivate}
-                        stepMs={stepMs}
-                      />
-                    ) : (
-                      <Diagram
-                        node={node}
-                        dg={dg}
-                        path={path}
-                        sim={sim}
-                        d={d}
-                        focusId={focusId}
-                        onEnter={onEnter}
-                        onLeave={onLeave}
-                        onActivate={onActivate}
-                        stepMs={stepMs}
-                      />
-                    )}
-                  </g>
-                </svg>
-              </div>
-
-              {sim.prog && showPanel && progSwitches}
-
-              <p className="border border-t-0 border-[color:var(--sap-frame)] px-3 py-2 text-sm" aria-live="polite">
-                <span className="font-bold">
-                  {sim.prog
-                    ? "PROG · clock stopped"
-                    : sim.halted
-                      ? "Halted"
-                      : `T${sim.t} · ${sim.t <= 3 ? "fetch" : `execute ${d.op}`}`}
-                </span>{" "}
-                — {describe(sim)}
-              </p>
-              <p className="mt-2 text-xs text-[color:var(--sap-muted)]">
-                {mode === "game"
-                  ? "Lit parts are active in this T state: amber carries an address, green data, red control signals and the output, warm white the clock and T states."
-                  : "Red marks what is active in this T state."}{" "}
-                Esc or the breadcrumbs go back up a level.
-              </p>
-              {/* Below lg: the mission on view, docked to the bottom of the screen. */}
-              <TourDock
-                tour={tour}
-                sim={sim}
-                d={d}
-                offPanel={!showPanel}
-                invite={tour.invite && mode === "game"}
-                onBackToPanel={backToPanel}
-                onLoadExample={() => setSim((s) => loadExample(s))}
-                onRestart={() => startTour({ restart: true })}
-                onStart={() => startTour({ restart: true })}
-              />
-            </div>
-
-            <div className="min-w-0">
-              {tour.open ? (
-                <TourPanel
-                  tour={tour}
-                  sim={sim}
-                  d={d}
-                  offPanel={!showPanel}
-                  onBackToPanel={backToPanel}
-                  onLoadExample={() => setSim((s) => loadExample(s))}
-                  onRestart={() => startTour({ restart: true })}
-                />
+        <nav aria-label="Breadcrumb" className="mt-6 flex flex-wrap items-center gap-x-2 text-sm">
+          {crumbs.map((c, i) => (
+            <span key={c.path.join("/") || "root"} className="flex items-center gap-x-2">
+              {i > 0 && <span className="text-[color:var(--sap-faint)]">/</span>}
+              {i === crumbs.length - 1 ? (
+                <span className="font-bold">{c.title}</span>
               ) : (
-                tour.invite &&
-                mode === "game" && (
-                  <TourInvite
-                    onStart={() => startTour({ restart: true })}
-                    onDecline={tour.decline}
-                    className="max-lg:hidden"
-                  />
-                )
+                <button
+                  onClick={() => navigate(c.path)}
+                  className="text-[color:var(--sap-soft)] underline-offset-2 hover:underline"
+                >
+                  {c.title}
+                </button>
               )}
-              <Panel
-                node={node}
-                path={path}
-                focus={focus}
-                drill={Boolean(focus && node.children?.[focus.id])}
-                sim={sim}
-                d={d}
-                onOpen={(id) => navigate([...path, id])}
-              />
+            </span>
+          ))}
+        </nav>
+
+        <div className="mt-3 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0">
+            {/* On phones (below sm) it packs into one row of buttons, with RUN/PROG and Load
+                example in a More menu, and one status line. */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-b-0 border-[color:var(--sap-frame)] px-3 py-2 max-sm:gap-y-1.5 max-sm:px-2 max-sm:py-1.5">
+              {progToggle("max-sm:hidden")}
+              <div className="flex flex-wrap gap-1.5 max-sm:w-full max-sm:flex-nowrap max-sm:gap-1">
+                <button
+                  type="button"
+                  className={`${btn} ${BTN_PHONE}`}
+                  onClick={() => {
+                    setRunning(false);
+                    setSim((s) => clear(s));
+                  }}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className={`${btn} ${BTN_PHONE}`}
+                  disabled={clockStopped || running}
+                  onClick={() => setSim((s) => step(s))}
+                >
+                  Step
+                </button>
+                <button
+                  type="button"
+                  className={`${btn} w-[4.5rem] ${BTN_PHONE} max-sm:w-[3.25rem]`}
+                  disabled={clockStopped}
+                  onClick={() => setRunning((r) => !r)}
+                >
+                  {running ? "Pause" : "Run"}
+                </button>
+                <div role="group" aria-label="Clock rate" className="flex">
+                  {RATE_LABELS.map(([r, label, short], i) => (
+                    <button
+                      key={r}
+                      type="button"
+                      aria-label={label}
+                      aria-pressed={rate === r}
+                      onClick={() => setRate(r)}
+                      className={`border border-[color:var(--sap-ink)] px-2 py-1 font-sap-mono text-[12px] max-sm:min-w-6 max-sm:px-1.5 max-sm:py-0.5 ${
+                        i ? "-ml-px" : ""
+                      } ${
+                        rate === r
+                          ? "bg-[color:var(--sap-ink)] text-[color:var(--sap-bg)]"
+                          : "hover:bg-[color:var(--sap-hover)]"
+                      }`}
+                    >
+                      <span className="max-sm:hidden">{label}</span>
+                      <span aria-hidden="true" className="sm:hidden">
+                        {short}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className={`${btn} max-sm:hidden`} onClick={loadEx}>
+                  Load example
+                </button>
+                <MoreMenu id="sap1-more">
+                  {(close) => (
+                    <div className="flex flex-col items-start gap-2">
+                      {progToggle("", close)}
+                      <button
+                        type="button"
+                        className={`${btn} ${BTN_PHONE}`}
+                        onClick={() => {
+                          loadEx();
+                          close();
+                        }}
+                      >
+                        Load example
+                      </button>
+                    </div>
+                  )}
+                </MoreMenu>
+              </div>
+              {/* The status readouts; on a phone, one small line. */}
+              <div className="contents max-sm:flex max-sm:w-full max-sm:flex-wrap max-sm:items-center max-sm:justify-between max-sm:gap-x-2">
+                <div className="flex gap-1 font-sap-mono text-[13px] max-sm:gap-0.5 max-sm:text-[11px]" aria-label="T state">
+                  {[1, 2, 3, 4, 5, 6].map((t) => (
+                    <span
+                      key={t}
+                      className={`px-1.5 py-0.5 max-sm:px-[3px] max-sm:py-0 ${
+                        !sim.halted && sim.t === t
+                          ? "bg-[color:var(--sap-type-status)] text-[color:var(--sap-on-accent)]"
+                          : t <= 3
+                            ? "text-[color:var(--sap-muted)]"
+                            : "text-[color:var(--sap-faint)]"
+                      }`}
+                    >
+                      T{t}
+                    </span>
+                  ))}
+                </div>
+                <div className="font-sap-mono text-[13px] max-sm:text-[11px]">
+                  CON <span className="font-bold">{hex(d.con, 3)}H</span>
+                </div>
+                <div className="font-sap-mono text-[13px] max-sm:text-[11px]">
+                  OUT <span className="font-bold">{bin(sim.out)}</span> = {sim.out}
+                </div>
+              </div>
             </div>
+
+            {sim.prog && (
+              <ProgSwitches
+                sim={sim}
+                onAddrBit={(i) => setSim((s) => toggleAddrBit(s, i))}
+                onDataBit={(i) => setSim((s) => toggleDataBit(s, i))}
+                onWrite={() => setSim((s) => write(s))}
+              />
+            )}
+
+            {/* Below 680px wide the frame scrolls sideways, except for the upright overview,
+                which fits a phone. */}
+            <div ref={frameRef} className="overflow-x-auto border border-[color:var(--sap-frame)]">
+              <svg
+                ref={svgRef}
+                viewBox={full.join(" ")}
+                className={`block h-auto w-full ${
+                  tall ? "" : "min-w-[680px]"
+                } touch-manipulation select-none outline-none`}
+                tabIndex={-1}
+                role="group"
+                aria-label={`${node.title} diagram`}
+              >
+                <defs>
+                  <style>{PULSE_CSS}</style>
+                  {[["off", P.ink], ...Object.entries(P.type)].map(([id, color]) => (
+                    <marker
+                      key={id}
+                      id={`sap1-arrow-${id}`}
+                      viewBox="0 0 10 10"
+                      refX={9}
+                      refY={5}
+                      markerWidth={9}
+                      markerHeight={9}
+                      markerUnits="userSpaceOnUse"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M0,1 L10,5 L0,9 z" fill={color} />
+                    </marker>
+                  ))}
+                </defs>
+                <g ref={sceneRef}>
+                  <Diagram
+                    node={node}
+                    dg={dg}
+                    path={path}
+                    sim={sim}
+                    d={d}
+                    focusId={focusId}
+                    onEnter={onEnter}
+                    onLeave={onLeave}
+                    onActivate={onActivate}
+                    stepMs={stepMs}
+                  />
+                </g>
+              </svg>
+            </div>
+
+            <p className="border border-t-0 border-[color:var(--sap-frame)] px-3 py-2 text-sm" aria-live="polite">
+              <span className="font-bold">
+                {sim.prog
+                  ? "PROG · clock stopped"
+                  : sim.halted
+                    ? "Halted"
+                    : `T${sim.t} · ${sim.t <= 3 ? "fetch" : `execute ${d.op}`}`}
+              </span>{" "}
+              — {describe(sim)}
+            </p>
+            <p className="mt-2 text-xs text-[color:var(--sap-muted)]">
+              Red marks what is active in this T state. Esc or the breadcrumbs go back up a level.
+            </p>
           </div>
-        </main>
-      </div>
-    </PaletteContext.Provider>
+
+          <div className="min-w-0">
+            <Panel
+              node={node}
+              path={path}
+              focus={focus}
+              drill={Boolean(focus && node.children?.[focus.id])}
+              sim={sim}
+              d={d}
+              onOpen={(id) => navigate([...path, id])}
+            />
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

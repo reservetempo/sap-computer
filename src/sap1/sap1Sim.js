@@ -65,16 +65,14 @@ export const hex = (v, n = 2) => (v >>> 0).toString(16).toUpperCase().padStart(n
 
 // prog: the RUN/PROG switch S2 (false = RUN, true = PROG). addrSw: address switches S1 (4 bits).
 // dataSw: data switches S3 (8 bits). cycles: T states elapsed. instructions: instructions completed.
-// clears / writes: how many times CLEAR and WRITE have been pressed (never reset), so the guided
-// tour can tell a press happened even when it changed nothing else.
 export function initialState() {
   return {
     pc: 0, mar: 0, ir: 0, a: 0, b: 0, out: 0, ram: [...PROGRAM], t: 1, halted: false,
-    prog: false, addrSw: 0, dataSw: 0, cycles: 0, instructions: 0, clears: 0, writes: 0,
+    prog: false, addrSw: 0, dataSw: 0, cycles: 0, instructions: 0,
   };
 }
 
-// The front-panel switches (S1–S5 on the SAP-1 schematic in the book). Each helper returns a new
+// The SAP-1's switches (S1–S5 on the schematic in the book). Each helper returns a new
 // state and never mutates the one passed in.
 
 // S2, RUN/PROG: drives the select input of the 74LS157 (C5) that picks the RAM address.
@@ -95,15 +93,13 @@ export function write(s) {
   if (!s.prog) return s;
   const ram = [...s.ram];
   ram[s.addrSw & 0xf] = s.dataSw & 0xff;
-  return { ...s, ram, writes: (s.writes ?? 0) + 1 };
+  return { ...s, ram };
 }
 
 // S5, CLEAR/START: CLR resets the instruction register, CLR̅ resets the program counter and the
 // ring counter (back to T1) and restarts the clock. RAM, A, B, OUT, MAR and the switches keep
-// their contents. The counters start again from zero (except `clears`, which counts the presses).
-export const clear = (s) => ({
-  ...s, pc: 0, ir: 0, t: 1, halted: false, cycles: 0, instructions: 0, clears: (s.clears ?? 0) + 1,
-});
+// their contents. The counters start again from zero.
+export const clear = (s) => ({ ...s, pc: 0, ir: 0, t: 1, halted: false, cycles: 0, instructions: 0 });
 
 // Put Example 10-1 back into the RAM.
 export const loadExample = (s) => ({ ...s, ram: [...PROGRAM] });

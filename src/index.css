@@ -2,12 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark only. The game palette's background (theme.js GAME.bg); the visualizer repaints <html> in
-   the active palette once it mounts. */
+/* Dark only: the palette's background and text colors (theme.js TEXTBOOK.bg and ink). */
 html,
 body {
-  background-color: #12161f;
-  color: #e8e2d0;
+  background-color: #0d0f12;
+  color: #e5e7eb;
   color-scheme: dark;
 }
 

@@ -1,10 +1,10 @@
-// What kind of information a signal, wire, pin or block carries. The game look colors each kind
-// like a front-panel lamp (see TYPE_LED in theme.js):
-//   address  amber   the program counter, MAR and every 4-bit address path
-//   data     green   the RAM, IR, accumulator, B, adder-subtracter and every 8-bit path
-//   control  red     the 12 CON bits, CLR / CLR̄ and WE̅: signals that tell a part to act
-//   status   white   the clock (CLK, CLK̄), HLT̄ and the T states: timing and machine state
-//   output   red     the output register's display
+// What kind of information a signal, wire, pin or block carries. The palette gives each kind a lit
+// color (theme.js type[t]), the same red for all of them at present:
+//   address  the program counter, MAR and every 4-bit address path
+//   data     the RAM, IR, accumulator, B, adder-subtracter and every 8-bit path
+//   control  the 12 CON bits, CLR / CLR̄ and WE̅: signals that tell a part to act
+//   status   the clock (CLK, CLK̄), HLT̄ and the T states: timing and machine state
+//   output   the output register's display
 //
 // signalType(x, { d, path }) takes
 //   - a signal name: 'Ep', 'CLK_', 'T3', ...

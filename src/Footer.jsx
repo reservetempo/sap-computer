@@ -1,18 +1,18 @@
 import { MAIN_SITE_URL, REPO_URL } from "./config";
-import { GAME } from "./sap1/theme";
+import { TEXTBOOK } from "./sap1/theme";
 
 // Sits outside the visualizer, so the --sap-* palette variables don't reach it. The colors are
-// neutral greys that read on both the Game and Textbook backgrounds (theme.js), which the
-// visualizer paints onto <html>. It always uses Game mode's fonts (theme.js GAME.font).
+// neutral greys that read on the page background (theme.js TEXTBOOK.bg, set in index.css), and the
+// fonts are the visualizer's (theme.js TEXTBOOK.font).
 const label = "text-[11px] font-bold uppercase tracking-[0.18em] text-[#8f8e88]";
-const labelFont = { fontFamily: GAME.font.label };
+const labelFont = { fontFamily: TEXTBOOK.font.label };
 const link =
   "text-[#e6e4dc] underline decoration-[#5a606c] underline-offset-4 hover:text-white hover:decoration-current " +
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e6e4dc]";
 
 export default function Footer() {
   return (
-    <footer className="mx-auto max-w-6xl px-4 pb-10 text-sm text-[#b9b7ae]" style={{ fontFamily: GAME.font.body }}>
+    <footer className="mx-auto max-w-6xl px-4 pb-10 text-sm text-[#b9b7ae]" style={{ fontFamily: TEXTBOOK.font.body }}>
       <div className="flex flex-col gap-6 border-t border-[#3d4350] pt-6 sm:flex-row sm:justify-between">
         <div className="max-w-2xl space-y-3">
           <p className={label} style={labelFont}>About</p>
