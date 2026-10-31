@@ -7,3 +7,7 @@ npm install
 npm run dev     # dev server at http://localhost:5173
 npm run build   # static site in dist/
 ```
+
+## Deploy
+
+Pushes to `main` build and deploy automatically to GitHub Pages via GitHub Actions (`.github/workflows/deploy.yml`). The live site is at https://reservetempo.github.io/sap-computer/.
